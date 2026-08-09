@@ -1,10 +1,9 @@
 import uploadRoutes from "./routes/upload.routes.js";
 import userRoutes from "./routes/user.routes.js";
 import express from "express";
-import dotenv from "dotenv";
 import cors from "cors";
+import "./config.js";
 
-dotenv.config({ path: "../.env" });
 const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN;
 
 const app = express();

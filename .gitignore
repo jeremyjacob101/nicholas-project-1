@@ -50,6 +50,10 @@ data/
 minio-data/
 postgres-data/
 
+# The server storage adapter is source code, not runtime object storage.
+!server/src/storage/
+!server/src/storage/**
+
 # Local-only config files
 *.local
 
