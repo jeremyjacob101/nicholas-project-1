@@ -9,13 +9,20 @@ node_modules/
 
 # Build output
 dist/
+**/dist/
+dist-ssr/
+**/dist-ssr/
 build/
+**/build/
 out/
 .next/
+
+# Test / coverage output
 coverage/
-**/dist/
-**/build/
 **/coverage/
+.nyc_output/
+playwright-report/
+test-results/
 
 # TypeScript
 *.tsbuildinfo
@@ -23,10 +30,12 @@ coverage/
 # Logs
 logs/
 *.log
+*.log.*
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+lerna-debug.log*
 
 # Local database files
 *.sqlite
@@ -41,40 +50,45 @@ data/
 minio-data/
 postgres-data/
 
+# Local-only config files
+*.local
+
 # macOS
 .DS_Store
 .AppleDouble
 .LSOverride
 ._*
 
-# VS Code local settings
-.vscode/
+# VS Code
+.vscode/*
 !.vscode/extensions.json
 
-# JetBrains IDEs
+# JetBrains
 .idea/
 *.iml
 
-# Temporary files
+# Visual Studio / miscellaneous editor files
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+*.swo
+*.sw?
+
+# Temporary/cache files
 tmp/
 temp/
 .cache/
 *.tmp
 *.temp
-*.swp
-*.swo
-
-# Test artifacts
-.nyc_output/
-playwright-report/
-test-results/
 
 # Package manager caches
 .npm/
 .yarn/cache/
 .pnpm-store/
 
-# Miscellaneous
+# Certificates / private keys
 *.pem
 *.key
 *.crt

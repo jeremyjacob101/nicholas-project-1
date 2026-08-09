@@ -1,0 +1,17 @@
+{
+  "name": "research-image-upload-1",
+  "private": true,
+  "workspaces": [
+    "client",
+    "server"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace=client",
+    "server": "npm run server --workspace=server",
+    "format": "prettier . --write",
+    "format:check": "prettier . --check"
+  },
+  "devDependencies": {
+    "prettier": "^3.9.6"
+  }
+}
