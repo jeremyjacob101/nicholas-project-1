@@ -1,3 +1,4 @@
+import uploadRoutes from "./routes/upload.routes.js";
 import userRoutes from "./routes/user.routes.js";
 import express from "express";
 import dotenv from "dotenv";
@@ -11,10 +12,7 @@ const app = express();
 app.use(cors({ origin: CLIENT_ORIGIN }));
 app.use(express.json());
 
-app.get("/health", (request, response) => {
-  response.json({ status: "ok" });
-});
-
 app.use("/api/users", userRoutes);
+app.use("/api/uploads", uploadRoutes);
 
 export default app;
