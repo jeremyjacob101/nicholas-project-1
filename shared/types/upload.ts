@@ -31,6 +31,25 @@ export type UploadRecord = CreateUploadInput & {
   updated_at: string;
 };
 
+export type AuthorizedUpload = Pick<
+  UploadRecord,
+  "id" | "sample_id" | "filename" | "classification" | "status" | "created_at"
+>;
+
+export type UploadsState = {
+  userId: string;
+  refreshVersion: number;
+  uploads: AuthorizedUpload[];
+  error: string | null;
+};
+
+export const initialUploadsState: UploadsState = {
+  userId: "",
+  refreshVersion: 0,
+  uploads: [],
+  error: null,
+};
+
 export type CreatedUpload = Pick<UploadRecord, "id" | "status">;
 
 export type InitiatedUpload = {

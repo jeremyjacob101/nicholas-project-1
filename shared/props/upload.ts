@@ -1,4 +1,8 @@
-import type { CreatedUpload, CreateUploadInput } from "../types/upload.ts";
+import type {
+  AuthorizedUpload,
+  CreatedUpload,
+  CreateUploadInput,
+} from "../types/upload.ts";
 
 export type UploadFormProps = {
   isSubmitting: boolean;
@@ -9,4 +13,10 @@ export type UploadFormProps = {
 
 export type UploadRecordSummaryProps = {
   upload: CreatedUpload | null;
+};
+
+export type UploadListProps = {
+  uploads: AuthorizedUpload[];
+  isLoading: boolean;
+  error: string | null;
 };

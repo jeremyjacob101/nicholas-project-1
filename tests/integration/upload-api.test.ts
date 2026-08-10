@@ -1,4 +1,5 @@
 import type {
+  AuthorizedUpload,
   CreatedUpload,
   InitiateUploadInput,
   InitiatedUpload,
@@ -166,6 +167,23 @@ async function initiateInvalidUpload(
     method: "POST",
     headers: getRequestHeaders(userId),
     body: JSON.stringify({ ...createUploadInput(), ...input }),
+  });
+}
+
+async function listAuthorizedUploads(
+  userId = ALICE_ID,
+): Promise<ApiResult<{ uploads: AuthorizedUpload[] }>> {
+  return requestApi<{ uploads: AuthorizedUpload[] }>("/api/uploads", {
+    headers: { "X-Dev-User-Id": userId },
+  });
+}
+
+async function getAuthorizedUpload(
+  uploadId: string,
+  userId = ALICE_ID,
+): Promise<ApiResult<{ upload: AuthorizedUpload }>> {
+  return requestApi<{ upload: AuthorizedUpload }>(`/api/uploads/${uploadId}`, {
+    headers: { "X-Dev-User-Id": userId },
   });
 }
 
@@ -375,6 +393,96 @@ describe("upload initialization", () => {
       status: "queued",
       object_key: `uploads/${ALICE_COMPANY_ID}/${record.id}/scan.svg`,
     });
+  });
+});
+
+describe("company-scoped upload access", () => {
+  test("requires a current user to list uploads", async () => {
+    const missingUser = await requestApi<{ error: string }>("/api/uploads");
+    const unknownUser = await requestApi<{ error: string }>("/api/uploads", {
+      headers: { "X-Dev-User-Id": UNKNOWN_USER_ID },
+    });
+
+    expect(missingUser.response.status).toBe(401);
+    expect(missingUser.body).toEqual({ error: "A current user is required" });
+    expect(unknownUser.response.status).toBe(401);
+    expect(unknownUser.body).toEqual({ error: "Invalid current user" });
+  });
+
+  test("lists only the current company's uploads without storage metadata", async () => {
+    const aliceFirst = await initiateUpload({ sample_id: "ALICE-001" });
+    const aliceSecond = await initiateUpload({ sample_id: "ALICE-002" });
+    const bobUpload = await initiateUpload({ sample_id: "BOB-001" }, BOB_ID);
+
+    expect(
+      [aliceFirst, aliceSecond, bobUpload].map(
+        ({ response }) => response.status,
+      ),
+    ).toEqual([201, 201, 201]);
+
+    const aliceList = await listAuthorizedUploads(ALICE_ID);
+    const bobList = await listAuthorizedUploads(BOB_ID);
+
+    expect(aliceList.response.status).toBe(200);
+    expect(aliceList.body.uploads.map(({ id }) => id).sort()).toEqual(
+      [aliceFirst.body.upload.id, aliceSecond.body.upload.id].sort(),
+    );
+    expect(bobList.response.status).toBe(200);
+    expect(bobList.body.uploads.map(({ id }) => id)).toEqual([
+      bobUpload.body.upload.id,
+    ]);
+
+    for (const upload of [...aliceList.body.uploads, ...bobList.body.uploads]) {
+      expect(Object.keys(upload).sort()).toEqual([
+        "classification",
+        "created_at",
+        "filename",
+        "id",
+        "sample_id",
+        "status",
+      ]);
+    }
+  });
+
+  test("returns an owned upload but conceals cross-company and missing records", async () => {
+    const aliceUpload = await initiateUpload({ sample_id: "ALICE-PRIVATE" });
+    const uploadId = aliceUpload.body.upload.id;
+
+    const ownUpload = await getAuthorizedUpload(uploadId, ALICE_ID);
+    const bobAttempt = await requestApi<{ error: string }>(
+      `/api/uploads/${uploadId}`,
+      { headers: { "X-Dev-User-Id": BOB_ID } },
+    );
+    const missingAttempt = await requestApi<{ error: string }>(
+      "/api/uploads/dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+      { headers: { "X-Dev-User-Id": BOB_ID } },
+    );
+    const malformedAttempt = await requestApi<{ error: string }>(
+      "/api/uploads/not-an-upload-id",
+      { headers: { "X-Dev-User-Id": BOB_ID } },
+    );
+
+    expect(ownUpload.response.status).toBe(200);
+    expect(ownUpload.body.upload).toMatchObject({
+      id: uploadId,
+      sample_id: "ALICE-PRIVATE",
+      filename: "scan.svg",
+      classification: "Research",
+      status: "queued",
+    });
+    expect(Object.keys(ownUpload.body.upload).sort()).toEqual([
+      "classification",
+      "created_at",
+      "filename",
+      "id",
+      "sample_id",
+      "status",
+    ]);
+
+    for (const attempt of [bobAttempt, missingAttempt, malformedAttempt]) {
+      expect(attempt.response.status).toBe(404);
+      expect(attempt.body).toEqual({ error: "Upload not found" });
+    }
   });
 });
 

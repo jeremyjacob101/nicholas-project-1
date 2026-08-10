@@ -1,32 +1,54 @@
-import {
-  createUpload,
-  findUploadByIdAndCompanyId,
-  updateUploadStatus,
-} from "../models/upload.model.ts";
 import type { InitiatedUpload } from "../../../shared/types/upload.ts";
+import type { UserRecord } from "../../../shared/types/user.ts";
 import { findUserById } from "../models/user.model.ts";
 import type { Request, Response } from "express";
 import type { BucketItemStat } from "minio";
 import { randomUUID } from "node:crypto";
 import {
+  describeMinioError,
+  isMinioObjectNotFound,
+} from "../helpers/storage.helper.ts";
+import {
   getSafeFilename,
   isImageContentType,
+  isValidUploadId,
   MAX_IMAGE_SIZE_BYTES,
   validateInitiateUploadInput,
 } from "../helpers/upload.helper.ts";
+import {
+  createUpload,
+  findUploadByIdAndCompanyId,
+  findUploadsByCompanyId,
+  findUploadRecordByIdAndCompanyId,
+  updateUploadStatus,
+} from "../models/upload.model.ts";
 import {
   createPresignedMinioUploadUrl,
   deleteMinioObject,
   getMinioObjectStat,
   PRESIGNED_UPLOAD_URL_EXPIRATION_SECONDS,
 } from "../minio.ts";
-import {
-  describeMinioError,
-  isMinioObjectNotFound,
-} from "../helpers/storage.helper.ts";
 
-const UPLOAD_ID_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+async function getCurrentUser(
+  request: Request,
+  response: Response,
+): Promise<UserRecord | null> {
+  const devUserId = request.header("X-Dev-User-Id");
+
+  if (!devUserId) {
+    response.status(401).json({ error: "A current user is required" });
+    return null;
+  }
+
+  const user = await findUserById(devUserId);
+
+  if (!user) {
+    response.status(401).json({ error: "Invalid current user" });
+    return null;
+  }
+
+  return user;
+}
 
 export async function initiateUpload(
   request: Request,
@@ -41,20 +63,12 @@ export async function initiateUpload(
 
   const { input } = validation;
 
-  const devUserId = request.header("X-Dev-User-Id");
-
-  if (!devUserId) {
-    response.status(401).json({ error: "A current user is required" });
-    return;
-  }
-
   let uploadId: string | undefined;
 
   try {
-    const user = await findUserById(devUserId);
+    const user = await getCurrentUser(request, response);
 
     if (!user) {
-      response.status(401).json({ error: "Invalid current user" });
       return;
     }
 
@@ -106,27 +120,22 @@ export async function confirmUpload(
 ): Promise<void> {
   const uploadId = request.params.uploadId;
 
-  if (typeof uploadId !== "string" || !UPLOAD_ID_PATTERN.test(uploadId)) {
+  if (!isValidUploadId(uploadId)) {
     response.status(404).json({ error: "Upload not found" });
     return;
   }
 
-  const devUserId = request.header("X-Dev-User-Id");
-
-  if (!devUserId) {
-    response.status(401).json({ error: "A current user is required" });
-    return;
-  }
-
   try {
-    const user = await findUserById(devUserId);
+    const user = await getCurrentUser(request, response);
 
     if (!user) {
-      response.status(401).json({ error: "Invalid current user" });
       return;
     }
 
-    const upload = await findUploadByIdAndCompanyId(uploadId, user.company_id);
+    const upload = await findUploadRecordByIdAndCompanyId(
+      uploadId,
+      user.company_id,
+    );
 
     if (!upload) {
       response.status(404).json({ error: "Upload not found" });
@@ -194,5 +203,59 @@ export async function confirmUpload(
   } catch (error) {
     console.error("Failed to confirm upload:", error);
     response.status(500).json({ error: "Unable to confirm upload" });
+  }
+}
+
+export async function listUploads(
+  request: Request,
+  response: Response,
+): Promise<void> {
+  try {
+    const user = await getCurrentUser(request, response);
+
+    if (!user) {
+      return;
+    }
+
+    const uploads = await findUploadsByCompanyId(user.company_id);
+    response.json({ uploads });
+  } catch (error) {
+    console.error("Failed to list uploads:", error);
+    response.status(500).json({ error: "Unable to load uploads" });
+  }
+}
+
+export async function getUpload(
+  request: Request,
+  response: Response,
+): Promise<void> {
+  const uploadId = request.params.uploadId;
+
+  if (!isValidUploadId(uploadId)) {
+    response.status(404).json({ error: "Upload not found" });
+    return;
+  }
+
+  try {
+    const user = await getCurrentUser(request, response);
+
+    if (!user) {
+      return;
+    }
+
+    const upload = await findUploadByIdAndCompanyId(
+      uploadId,
+      user.company_id,
+    );
+
+    if (!upload) {
+      response.status(404).json({ error: "Upload not found" });
+      return;
+    }
+
+    response.json({ upload });
+  } catch (error) {
+    console.error("Failed to load upload:", error);
+    response.status(500).json({ error: "Unable to load upload" });
   }
 }

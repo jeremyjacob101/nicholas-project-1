@@ -1,5 +1,6 @@
 import {
   getSafeFilename,
+  isValidUploadId,
   MAX_IMAGE_SIZE_BYTES,
   validateInitiateUploadInput,
 } from "../../server/src/helpers/upload.helper.ts";
@@ -35,6 +36,25 @@ describe("safe upload filenames", () => {
 
   test("caps filenames at 200 characters", () => {
     expect(getSafeFilename("a".repeat(250))).toHaveLength(200);
+  });
+});
+
+describe("upload ID validation", () => {
+  test("accepts a valid UUID upload ID", () => {
+    expect(isValidUploadId("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa")).toBe(
+      true,
+    );
+  });
+
+  test.each([
+    undefined,
+    null,
+    42,
+    "not-an-upload-id",
+    "aaaaaaaa-aaaa-6aaa-8aaa-aaaaaaaaaaaa",
+    "aaaaaaaa-aaaa-4aaa-caaa-aaaaaaaaaaaa",
+  ])("rejects an invalid upload ID: %s", (uploadId) => {
+    expect(isValidUploadId(uploadId)).toBe(false);
   });
 });
 

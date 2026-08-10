@@ -1,4 +1,5 @@
 import type {
+  AuthorizedUpload,
   CreateUploadRecordInput,
   UploadStatus,
   UploadRecord,
@@ -64,7 +65,7 @@ export async function updateUploadStatus(
   );
 }
 
-export async function findUploadByIdAndCompanyId(
+export async function findUploadRecordByIdAndCompanyId(
   uploadId: string,
   companyId: string,
 ): Promise<UploadRecord | null> {
@@ -82,6 +83,50 @@ export async function findUploadByIdAndCompanyId(
         status,
         created_at,
         updated_at
+      FROM uploads
+      WHERE id = $1 AND company_id = $2
+    `,
+    [uploadId, companyId],
+  );
+
+  return result.rows[0] ?? null;
+}
+
+export async function findUploadsByCompanyId(
+  companyId: string,
+): Promise<AuthorizedUpload[]> {
+  const result = await pool.query<AuthorizedUpload>(
+    `
+      SELECT
+        id,
+        sample_id,
+        filename,
+        classification,
+        status,
+        created_at
+      FROM uploads
+      WHERE company_id = $1
+      ORDER BY created_at DESC
+    `,
+    [companyId],
+  );
+
+  return result.rows;
+}
+
+export async function findUploadByIdAndCompanyId(
+  uploadId: string,
+  companyId: string,
+): Promise<AuthorizedUpload | null> {
+  const result = await pool.query<AuthorizedUpload>(
+    `
+      SELECT
+        id,
+        sample_id,
+        filename,
+        classification,
+        status,
+        created_at
       FROM uploads
       WHERE id = $1 AND company_id = $2
     `,

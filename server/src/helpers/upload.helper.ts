@@ -5,9 +5,15 @@ import type {
 
 export const MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024;
 const IMAGE_MIME_TYPE_PATTERN = /^image\/[a-z0-9][a-z0-9.+-]*$/;
+const UPLOAD_ID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export function isImageContentType(contentType: string): boolean {
   return IMAGE_MIME_TYPE_PATTERN.test(contentType.trim().toLowerCase());
+}
+
+export function isValidUploadId(uploadId: unknown): uploadId is string {
+  return typeof uploadId === "string" && UPLOAD_ID_PATTERN.test(uploadId);
 }
 
 export function getSafeFilename(filename: string): string {

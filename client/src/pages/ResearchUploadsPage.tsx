@@ -2,7 +2,9 @@ import { UploadRecordSummary } from "../components/upload/UploadRecordSummary";
 import type { CreateUploadInput } from "../../../shared/types/upload";
 import { UserSelector } from "../components/users/UserSelector";
 import { UploadForm } from "../components/upload/UploadForm";
+import { UploadList } from "../components/upload/UploadList";
 import { useCreateUpload } from "../hooks/useCreateUpload";
+import { useUploads } from "../hooks/useUploads";
 import { useUsers } from "../hooks/useUsers";
 import { useState } from "react";
 
@@ -14,16 +16,32 @@ export default function ResearchUploadsPage() {
     isCreating,
     error: uploadError,
     submitUpload,
+    clearUpload,
   } = useCreateUpload();
 
   const activeUserId = selectedUserId || users[0]?.id || "";
+  const {
+    uploads,
+    isLoading: areUploadsLoading,
+    error: uploadsError,
+    refreshUploads,
+  } = useUploads(activeUserId);
 
-  function handleUploadSubmit(values: CreateUploadInput, file: File) {
+  async function handleUploadSubmit(values: CreateUploadInput, file: File) {
     if (!activeUserId) {
       return;
     }
 
-    void submitUpload(values, activeUserId, file);
+    const createdUpload = await submitUpload(values, activeUserId, file);
+
+    if (createdUpload) {
+      refreshUploads();
+    }
+  }
+
+  function handleUserChange(userId: string) {
+    clearUpload();
+    setSelectedUserId(userId);
   }
 
   return (
@@ -37,8 +55,9 @@ export default function ResearchUploadsPage() {
           users={users}
           selectedUserId={activeUserId}
           isLoading={areUsersLoading}
+          disabled={isCreating}
           error={usersError}
-          onChange={setSelectedUserId}
+          onChange={handleUserChange}
         />
 
         <UploadForm
@@ -49,6 +68,11 @@ export default function ResearchUploadsPage() {
         />
 
         <UploadRecordSummary upload={upload} />
+        <UploadList
+          uploads={uploads}
+          isLoading={areUploadsLoading}
+          error={uploadsError}
+        />
       </section>
     </main>
   );

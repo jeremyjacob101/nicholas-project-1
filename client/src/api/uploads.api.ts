@@ -1,9 +1,20 @@
 import type {
+  AuthorizedUpload,
   CreatedUpload,
   CreateUploadInput,
   InitiatedUpload,
 } from "../../../shared/types/upload";
 import { apiFetch } from "./client";
+
+export async function fetchUploads(
+  userId: string,
+): Promise<AuthorizedUpload[]> {
+  const data = await apiFetch<{ uploads: AuthorizedUpload[] }>("/api/uploads", {
+    headers: { "X-Dev-User-Id": userId },
+  });
+
+  return data.uploads;
+}
 
 async function uploadImageToMinio(
   uploadUrl: string,

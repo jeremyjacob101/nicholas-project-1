@@ -4,6 +4,7 @@ export function UserSelector({
   users,
   selectedUserId,
   isLoading,
+  disabled,
   error,
   onChange,
 }: UserSelectorProps) {
@@ -14,7 +15,7 @@ export function UserSelector({
         id="current-user"
         value={selectedUserId}
         onChange={(event) => onChange(event.target.value)}
-        disabled={isLoading || users.length === 0}
+        disabled={disabled || isLoading || users.length === 0}
       >
         {isLoading && <option>Loading users...</option>}
         {!isLoading && users.length === 0 && (

@@ -1,14 +1,19 @@
 import { createUploadRecord } from "../api/uploads.api";
+import { useCallback, useState } from "react";
 import type {
   CreatedUpload,
   CreateUploadInput,
 } from "../../../shared/types/upload";
-import { useState } from "react";
 
 export function useCreateUpload() {
   const [upload, setUpload] = useState<CreatedUpload | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const clearUpload = useCallback(() => {
+    setUpload(null);
+    setError(null);
+  }, []);
 
   async function submitUpload(
     input: CreateUploadInput,
@@ -35,5 +40,5 @@ export function useCreateUpload() {
     }
   }
 
-  return { upload, isCreating, error, submitUpload };
+  return { upload, isCreating, error, submitUpload, clearUpload };
 }
