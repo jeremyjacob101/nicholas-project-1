@@ -1,29 +1,54 @@
-import { createUpload, updateUploadStatus } from "../models/upload.model.ts";
-import type { CreatedUpload } from "../../../shared/types/upload.ts";
-import { deleteMinioObject, uploadMinioObject } from "../minio.ts";
+import {
+  createUpload,
+  findUploadByIdAndCompanyId,
+  updateUploadStatus,
+} from "../models/upload.model.ts";
+import type { InitiatedUpload } from "../../../shared/types/upload.ts";
 import { findUserById } from "../models/user.model.ts";
 import type { Request, Response } from "express";
+import type { BucketItemStat } from "minio";
 import { randomUUID } from "node:crypto";
 import {
   getSafeFilename,
-  getValidatedUploadRequest,
+  isImageContentType,
+  MAX_IMAGE_SIZE_BYTES,
+  validateInitiateUploadInput,
 } from "../helpers/upload.helper.ts";
+import {
+  createPresignedMinioUploadUrl,
+  deleteMinioObject,
+  getMinioObjectStat,
+  PRESIGNED_UPLOAD_URL_EXPIRATION_SECONDS,
+} from "../minio.ts";
+import {
+  describeMinioError,
+  isMinioObjectNotFound,
+} from "../helpers/storage.helper.ts";
 
-export async function createUploadRecord(
+const UPLOAD_ID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+export async function initiateUpload(
   request: Request,
   response: Response,
 ): Promise<void> {
-  const validatedRequest = getValidatedUploadRequest(request, response);
+  const validation = validateInitiateUploadInput(request.body);
 
-  if (!validatedRequest) {
+  if ("error" in validation) {
+    response.status(400).json({ error: validation.error });
     return;
   }
 
-  const { input, file, devUserId } = validatedRequest;
+  const { input } = validation;
 
-  let objectKey: string | undefined;
+  const devUserId = request.header("X-Dev-User-Id");
+
+  if (!devUserId) {
+    response.status(401).json({ error: "A current user is required" });
+    return;
+  }
+
   let uploadId: string | undefined;
-  let objectWasUploaded = false;
 
   try {
     const user = await findUserById(devUserId);
@@ -34,39 +59,34 @@ export async function createUploadRecord(
     }
 
     uploadId = randomUUID();
-    const filename = file.originalname || input.filename;
-    const safeFilename = getSafeFilename(filename);
-    objectKey = `uploads/${user.company_id}/${uploadId}/${safeFilename}`;
+    const safeFilename = getSafeFilename(input.filename);
+    const objectKey = `uploads/${user.company_id}/${uploadId}/${safeFilename}`;
 
     const upload = await createUpload({
-      ...input,
-      filename,
+      sample_id: input.sample_id,
+      filename: input.filename,
+      classification: input.classification,
       id: uploadId,
       safe_filename: safeFilename,
       company_id: user.company_id,
       created_by_user_id: user.id,
       object_key: objectKey,
     });
+    const uploadUrl = await createPresignedMinioUploadUrl(objectKey);
 
-    await uploadMinioObject(objectKey, file.buffer, file.mimetype);
-    objectWasUploaded = true;
-    await updateUploadStatus(upload.id, "uploaded");
-
-    const createdUpload: CreatedUpload = {
-      id: upload.id,
-      status: "uploaded",
+    const initiatedUpload: InitiatedUpload = {
+      upload: {
+        id: upload.id,
+        status: upload.status,
+      },
+      uploadUrl,
+      expiresAt: new Date(
+        Date.now() + PRESIGNED_UPLOAD_URL_EXPIRATION_SECONDS * 1000,
+      ).toISOString(),
     };
 
-    response.status(201).json(createdUpload);
+    response.status(201).json(initiatedUpload);
   } catch (error) {
-    if (objectWasUploaded && objectKey) {
-      try {
-        await deleteMinioObject(objectKey);
-      } catch (cleanupError) {
-        console.error("Failed to clean up uploaded object:", cleanupError);
-      }
-    }
-
     if (uploadId) {
       try {
         await updateUploadStatus(uploadId, "failed");
@@ -75,7 +95,104 @@ export async function createUploadRecord(
       }
     }
 
-    console.error("Failed to upload file:", error);
-    response.status(500).json({ error: "Unable to upload file" });
+    console.error("Failed to initialize upload:", error);
+    response.status(500).json({ error: "Unable to initialize upload" });
+  }
+}
+
+export async function confirmUpload(
+  request: Request,
+  response: Response,
+): Promise<void> {
+  const uploadId = request.params.uploadId;
+
+  if (typeof uploadId !== "string" || !UPLOAD_ID_PATTERN.test(uploadId)) {
+    response.status(404).json({ error: "Upload not found" });
+    return;
+  }
+
+  const devUserId = request.header("X-Dev-User-Id");
+
+  if (!devUserId) {
+    response.status(401).json({ error: "A current user is required" });
+    return;
+  }
+
+  try {
+    const user = await findUserById(devUserId);
+
+    if (!user) {
+      response.status(401).json({ error: "Invalid current user" });
+      return;
+    }
+
+    const upload = await findUploadByIdAndCompanyId(uploadId, user.company_id);
+
+    if (!upload) {
+      response.status(404).json({ error: "Upload not found" });
+      return;
+    }
+
+    if (upload.status === "uploaded") {
+      response.json({ id: upload.id, status: upload.status });
+      return;
+    }
+
+    if (upload.status !== "queued") {
+      response.status(409).json({ error: "Upload cannot be confirmed" });
+      return;
+    }
+
+    let objectStat: BucketItemStat;
+
+    try {
+      objectStat = await getMinioObjectStat(upload.object_key);
+    } catch (error) {
+      if (isMinioObjectNotFound(error)) {
+        await updateUploadStatus(upload.id, "failed");
+        response.status(400).json({ error: "Uploaded image was not found" });
+        return;
+      }
+
+      console.error(
+        "Failed to inspect uploaded MinIO object:",
+        describeMinioError(error),
+      );
+      response.status(500).json({ error: "Unable to confirm upload" });
+      return;
+    }
+
+    const contentType = objectStat.metaData["content-type"];
+    const hasValidSize =
+      Number.isSafeInteger(objectStat.size) &&
+      objectStat.size >= 1 &&
+      objectStat.size <= MAX_IMAGE_SIZE_BYTES;
+    const hasValidContentType =
+      typeof contentType === "string" && isImageContentType(contentType);
+
+    if (!hasValidSize || !hasValidContentType) {
+      try {
+        await deleteMinioObject(upload.object_key);
+      } catch (error) {
+        console.error(
+          "Failed to remove invalid MinIO object:",
+          describeMinioError(error),
+        );
+      }
+
+      await updateUploadStatus(upload.id, "failed");
+      response.status(400).json({
+        error: hasValidSize
+          ? "Only image files are supported"
+          : "Image must be between 1 byte and 10 MB",
+      });
+      return;
+    }
+
+    await updateUploadStatus(upload.id, "uploaded");
+    response.json({ id: upload.id, status: "uploaded" });
+  } catch (error) {
+    console.error("Failed to confirm upload:", error);
+    response.status(500).json({ error: "Unable to confirm upload" });
   }
 }

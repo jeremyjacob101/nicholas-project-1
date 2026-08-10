@@ -63,3 +63,30 @@ export async function updateUploadStatus(
     [uploadId, status],
   );
 }
+
+export async function findUploadByIdAndCompanyId(
+  uploadId: string,
+  companyId: string,
+): Promise<UploadRecord | null> {
+  const result = await pool.query<UploadRecord>(
+    `
+      SELECT
+        id,
+        sample_id,
+        filename,
+        safe_filename,
+        classification,
+        company_id,
+        created_by_user_id,
+        object_key,
+        status,
+        created_at,
+        updated_at
+      FROM uploads
+      WHERE id = $1 AND company_id = $2
+    `,
+    [uploadId, companyId],
+  );
+
+  return result.rows[0] ?? null;
+}

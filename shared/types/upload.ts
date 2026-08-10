@@ -1,5 +1,3 @@
-import type {} from "multer";
-
 export type UploadStatus =
   "uploaded" | "queued" | "processing" | "completed" | "failed";
 
@@ -7,6 +5,11 @@ export type CreateUploadInput = {
   sample_id: string;
   filename: string;
   classification: string;
+};
+
+export type InitiateUploadInput = CreateUploadInput & {
+  content_type: string;
+  content_length: number;
 };
 
 export type CreateUploadRecordInput = CreateUploadInput & {
@@ -30,8 +33,8 @@ export type UploadRecord = CreateUploadInput & {
 
 export type CreatedUpload = Pick<UploadRecord, "id" | "status">;
 
-export type ValidatedUploadRequest = {
-  input: CreateUploadInput;
-  file: Express.Multer.File;
-  devUserId: string;
+export type InitiatedUpload = {
+  upload: CreatedUpload;
+  uploadUrl: string;
+  expiresAt: string;
 };

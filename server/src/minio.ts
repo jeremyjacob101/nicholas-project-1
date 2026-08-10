@@ -11,6 +11,8 @@ const accessKeyId = process.env.MINIO_ROOT_USER!;
 const minioBucket = process.env.MINIO_BUCKET!;
 const region = process.env.MINIO_REGION!;
 
+export const PRESIGNED_UPLOAD_URL_EXPIRATION_SECONDS = 5 * 60;
+
 const minioClient = new Client({
   endPoint: process.env.APP_HOST!,
   port: Number(process.env.MINIO_API_HOST_PORT),
@@ -21,18 +23,22 @@ const minioClient = new Client({
   region,
 });
 
-export async function uploadMinioObject(
-  objectKey: string,
-  body: Buffer,
-  contentType: string,
-): Promise<void> {
-  await minioClient.putObject(minioBucket, objectKey, body, body.length, {
-    "Content-Type": contentType,
-  });
-}
-
 export async function deleteMinioObject(objectKey: string): Promise<void> {
   await minioClient.removeObject(minioBucket, objectKey);
+}
+
+export async function getMinioObjectStat(objectKey: string) {
+  return minioClient.statObject(minioBucket, objectKey);
+}
+
+export async function createPresignedMinioUploadUrl(
+  objectKey: string,
+): Promise<string> {
+  return minioClient.presignedPutObject(
+    minioBucket,
+    objectKey,
+    PRESIGNED_UPLOAD_URL_EXPIRATION_SECONDS,
+  );
 }
 
 export async function ensureMinioBucket(): Promise<void> {

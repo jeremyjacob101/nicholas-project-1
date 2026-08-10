@@ -42,3 +42,9 @@ export function isBucketAlreadyAvailable(error: unknown): boolean {
 
   return code === "BucketAlreadyOwnedByYou" || code === "BucketAlreadyExists";
 }
+
+export function isMinioObjectNotFound(error: unknown): boolean {
+  const code = getMinioErrorCode(error);
+
+  return code === "NoSuchKey" || code === "NoSuchObject" || code === "NotFound";
+}

@@ -1,8 +1,14 @@
-import type { Request, Response } from "express";
 import type {
   CreateUploadInput,
-  ValidatedUploadRequest,
+  InitiateUploadInput,
 } from "../../../shared/types/upload.ts";
+
+export const MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024;
+const IMAGE_MIME_TYPE_PATTERN = /^image\/[a-z0-9][a-z0-9.+-]*$/;
+
+export function isImageContentType(contentType: string): boolean {
+  return IMAGE_MIME_TYPE_PATTERN.test(contentType.trim().toLowerCase());
+}
 
 export function getSafeFilename(filename: string): string {
   const filenameWithoutPath = filename.replaceAll("\\", "/").split("/").pop();
@@ -15,7 +21,9 @@ export function getSafeFilename(filename: string): string {
   return safeFilename || "unnamed-file";
 }
 
-function getValidatedInput(body: unknown): CreateUploadInput | null {
+function getValidatedCreateUploadInput(
+  body: unknown,
+): CreateUploadInput | null {
   if (!body || typeof body !== "object") {
     return null;
   }
@@ -45,37 +53,43 @@ function getValidatedInput(body: unknown): CreateUploadInput | null {
   };
 }
 
-export function getValidatedUploadRequest(
-  request: Request,
-  response: Response,
-): ValidatedUploadRequest | null {
-  const input = getValidatedInput(request.body);
+export function validateInitiateUploadInput(
+  body: unknown,
+): { input: InitiateUploadInput } | { error: string } {
+  const uploadInput = getValidatedCreateUploadInput(body);
 
-  if (!input) {
-    response.status(400).json({
+  if (!uploadInput) {
+    return {
       error: "sample_id, filename, and classification are required",
-    });
-    return null;
+    };
   }
 
-  const file = request.file;
+  const input = body as Partial<InitiateUploadInput>;
+  const contentType =
+    typeof input.content_type === "string"
+      ? input.content_type.trim().toLowerCase()
+      : "";
 
-  if (!file) {
-    response.status(400).json({ error: "An image file is required" });
-    return null;
+  if (!isImageContentType(contentType)) {
+    return { error: "Only image files are supported" };
   }
 
-  if (!file.mimetype.toLowerCase().startsWith("image/")) {
-    response.status(400).json({ error: "Only image files are supported" });
-    return null;
+  const contentLength = input.content_length;
+
+  if (
+    typeof contentLength !== "number" ||
+    !Number.isSafeInteger(contentLength) ||
+    contentLength < 1 ||
+    contentLength > MAX_IMAGE_SIZE_BYTES
+  ) {
+    return { error: "Image must be between 1 byte and 10 MB" };
   }
 
-  const devUserId = request.header("X-Dev-User-Id");
-
-  if (!devUserId) {
-    response.status(401).json({ error: "A current user is required" });
-    return null;
-  }
-
-  return { input, file, devUserId };
+  return {
+    input: {
+      ...uploadInput,
+      content_type: contentType,
+      content_length: contentLength,
+    },
+  };
 }

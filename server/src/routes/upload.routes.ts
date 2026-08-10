@@ -1,9 +1,12 @@
-import { createUploadRecord } from "../controllers/upload.controller.ts";
-import { parseImageUpload } from "../middleware/upload.middleware.ts";
+import {
+  confirmUpload,
+  initiateUpload,
+} from "../controllers/upload.controller.ts";
 import { Router } from "express";
 
 const uploadRouter = Router();
 
-uploadRouter.post("/", parseImageUpload, createUploadRecord);
+uploadRouter.post("/init", initiateUpload);
+uploadRouter.post("/:uploadId/confirm", confirmUpload);
 
 export default uploadRouter;
