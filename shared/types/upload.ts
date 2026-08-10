@@ -1,3 +1,5 @@
+import type {} from "multer";
+
 export type UploadStatus =
   "uploaded" | "queued" | "processing" | "completed" | "failed";
 
@@ -27,3 +29,9 @@ export type UploadRecord = CreateUploadInput & {
 };
 
 export type CreatedUpload = Pick<UploadRecord, "id" | "status">;
+
+export type ValidatedUploadRequest = {
+  input: CreateUploadInput;
+  file: Express.Multer.File;
+  devUserId: string;
+};

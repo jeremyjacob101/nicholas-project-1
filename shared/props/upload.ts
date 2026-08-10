@@ -4,7 +4,7 @@ export type UploadFormProps = {
   isSubmitting: boolean;
   error: string | null;
   disabled: boolean;
-  onSubmit: (values: CreateUploadInput) => void;
+  onSubmit: (values: CreateUploadInput, file: File) => void;
 };
 
 export type UploadRecordSummaryProps = {

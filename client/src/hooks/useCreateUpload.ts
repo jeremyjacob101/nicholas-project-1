@@ -13,20 +13,21 @@ export function useCreateUpload() {
   async function submitUpload(
     input: CreateUploadInput,
     userId: string,
+    file: File,
   ): Promise<CreatedUpload | null> {
     setIsCreating(true);
     setError(null);
     setUpload(null);
 
     try {
-      const createdUpload = await createUploadRecord(input, userId);
+      const createdUpload = await createUploadRecord(input, userId, file);
       setUpload(createdUpload);
       return createdUpload;
     } catch (caughtError) {
       setError(
         caughtError instanceof Error
           ? caughtError.message
-          : "Unable to create upload",
+          : "Unable to upload file",
       );
       return null;
     } finally {

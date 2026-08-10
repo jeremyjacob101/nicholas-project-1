@@ -1,5 +1,6 @@
 import type {
   CreateUploadRecordInput,
+  UploadStatus,
   UploadRecord,
 } from "../../../shared/types/upload.js";
 import { pool } from "../database.js";
@@ -47,4 +48,18 @@ export async function createUpload(
   );
 
   return result.rows[0];
+}
+
+export async function updateUploadStatus(
+  uploadId: string,
+  status: UploadStatus,
+): Promise<void> {
+  await pool.query(
+    `
+      UPDATE uploads
+      SET status = $2, updated_at = NOW()
+      WHERE id = $1
+    `,
+    [uploadId, status],
+  );
 }

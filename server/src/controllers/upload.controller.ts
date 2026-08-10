@@ -1,72 +1,29 @@
-import { createUpload } from "../models/upload.model.js";
+import { createUpload, updateUploadStatus } from "../models/upload.model.js";
+import type { CreatedUpload } from "../../../shared/types/upload.js";
+import { deleteMinioObject, uploadMinioObject } from "../minio.js";
 import { findUserById } from "../models/user.model.js";
 import type { Request, Response } from "express";
-import type {
-  CreatedUpload,
-  CreateUploadInput,
-} from "../../../shared/types/upload.js";
 import { randomUUID } from "node:crypto";
-
-function getSafeFilename(filename: string): string {
-  const filenameWithoutPath = filename.replaceAll("\\", "/").split("/").pop();
-  const safeFilename = (filenameWithoutPath ?? "")
-    .normalize("NFKC")
-    .replace(/[^a-zA-Z0-9._-]/g, "_")
-    .replace(/^\.+/, "")
-    .slice(0, 200);
-
-  return safeFilename || "unnamed-file";
-}
-
-function getValidatedInput(body: unknown): CreateUploadInput | null {
-  if (!body || typeof body !== "object") {
-    return null;
-  }
-
-  const input = body as Partial<CreateUploadInput>;
-
-  if (
-    typeof input.sample_id !== "string" ||
-    typeof input.filename !== "string" ||
-    typeof input.classification !== "string"
-  ) {
-    return null;
-  }
-
-  const sampleId = input.sample_id.trim();
-  const filename = input.filename.trim();
-  const classification = input.classification.trim();
-
-  if (!sampleId || !filename || !classification) {
-    return null;
-  }
-
-  return {
-    sample_id: sampleId,
-    filename,
-    classification,
-  };
-}
+import {
+  getSafeFilename,
+  getValidatedUploadRequest,
+} from "../helpers/upload.helper.js";
 
 export async function createUploadRecord(
   request: Request,
   response: Response,
 ): Promise<void> {
-  const input = getValidatedInput(request.body);
+  const validatedRequest = getValidatedUploadRequest(request, response);
 
-  if (!input) {
-    response.status(400).json({
-      error: "sample_id, filename, and classification are required",
-    });
+  if (!validatedRequest) {
     return;
   }
 
-  const devUserId = request.header("X-Dev-User-Id");
+  const { input, file, devUserId } = validatedRequest;
 
-  if (!devUserId) {
-    response.status(401).json({ error: "A current user is required" });
-    return;
-  }
+  let objectKey: string | undefined;
+  let uploadId: string | undefined;
+  let objectWasUploaded = false;
 
   try {
     const user = await findUserById(devUserId);
@@ -76,12 +33,14 @@ export async function createUploadRecord(
       return;
     }
 
-    const uploadId = randomUUID();
-    const safeFilename = getSafeFilename(input.filename);
-    const objectKey = `uploads/${user.company_id}/${uploadId}/${safeFilename}`;
+    uploadId = randomUUID();
+    const filename = file.originalname || input.filename;
+    const safeFilename = getSafeFilename(filename);
+    objectKey = `uploads/${user.company_id}/${uploadId}/${safeFilename}`;
 
     const upload = await createUpload({
       ...input,
+      filename,
       id: uploadId,
       safe_filename: safeFilename,
       company_id: user.company_id,
@@ -89,14 +48,34 @@ export async function createUploadRecord(
       object_key: objectKey,
     });
 
+    await uploadMinioObject(objectKey, file.buffer, file.mimetype);
+    objectWasUploaded = true;
+    await updateUploadStatus(upload.id, "uploaded");
+
     const createdUpload: CreatedUpload = {
       id: upload.id,
-      status: upload.status,
+      status: "uploaded",
     };
 
     response.status(201).json(createdUpload);
   } catch (error) {
-    console.error("Failed to create upload record:", error);
-    response.status(500).json({ error: "Unable to create upload" });
+    if (objectWasUploaded && objectKey) {
+      try {
+        await deleteMinioObject(objectKey);
+      } catch (cleanupError) {
+        console.error("Failed to clean up uploaded object:", cleanupError);
+      }
+    }
+
+    if (uploadId) {
+      try {
+        await updateUploadStatus(uploadId, "failed");
+      } catch (statusError) {
+        console.error("Failed to mark upload as failed:", statusError);
+      }
+    }
+
+    console.error("Failed to upload file:", error);
+    response.status(500).json({ error: "Unable to upload file" });
   }
 }

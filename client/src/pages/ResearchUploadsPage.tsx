@@ -1,9 +1,9 @@
 import { UploadRecordSummary } from "../components/upload/UploadRecordSummary";
 import type { CreateUploadInput } from "../../../shared/types/upload";
 import { UserSelector } from "../components/users/UserSelector";
+import { UploadForm } from "../components/upload/UploadForm";
 import { useCreateUpload } from "../hooks/useCreateUpload";
 import { useUsers } from "../hooks/useUsers";
-import { UploadForm } from "../components/upload/UploadForm";
 import { useState } from "react";
 
 export default function ResearchUploadsPage() {
@@ -18,12 +18,12 @@ export default function ResearchUploadsPage() {
 
   const activeUserId = selectedUserId || users[0]?.id || "";
 
-  function handleUploadSubmit(values: CreateUploadInput) {
+  function handleUploadSubmit(values: CreateUploadInput, file: File) {
     if (!activeUserId) {
       return;
     }
 
-    void submitUpload(values, activeUserId);
+    void submitUpload(values, activeUserId, file);
   }
 
   return (

@@ -22,11 +22,14 @@ export function UploadForm({
       return;
     }
 
-    onSubmit({
-      sample_id: sampleId,
-      filename: file.name,
-      classification,
-    });
+    onSubmit(
+      {
+        sample_id: sampleId,
+        filename: file.name,
+        classification,
+      },
+      file,
+    );
   }
 
   return (
@@ -67,7 +70,7 @@ export function UploadForm({
       )}
 
       <button type="submit" disabled={disabled || isSubmitting}>
-        {isSubmitting ? "Creating..." : "Create Upload Record"}
+        {isSubmitting ? "Uploading..." : "Upload Image"}
       </button>
     </form>
   );

@@ -7,7 +7,7 @@ export function UploadRecordSummary({ upload }: UploadRecordSummaryProps) {
 
   return (
     <section className="result">
-      <h2>Upload record created</h2>
+      <h2>Image uploaded</h2>
       <p>ID: {upload.id}</p>
       <p>Status: {upload.status}</p>
     </section>

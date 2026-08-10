@@ -1,15 +1,17 @@
 import {
-  CreateBucketCommand,
-  HeadBucketCommand,
-  S3Client,
-} from "@aws-sdk/client-s3";
-import {
   describeS3Error,
   getS3ErrorDetails,
   isBucketAlreadyAvailable,
   isBucketNotFound,
-} from "./helpers.js";
-import "../config.js";
+} from "./helpers/storage.helper.js";
+import {
+  CreateBucketCommand,
+  DeleteObjectCommand,
+  HeadBucketCommand,
+  PutObjectCommand,
+  S3Client,
+} from "@aws-sdk/client-s3";
+import "./config.js";
 
 const endpoint = `http://${process.env.APP_HOST}:${process.env.MINIO_API_HOST_PORT}`;
 const secretAccessKey = process.env.MINIO_ROOT_PASSWORD!;
@@ -26,6 +28,30 @@ const minioClient = new S3Client({
     secretAccessKey,
   },
 });
+
+export async function uploadMinioObject(
+  objectKey: string,
+  body: Buffer,
+  contentType: string,
+): Promise<void> {
+  await minioClient.send(
+    new PutObjectCommand({
+      Bucket: minioBucket,
+      Key: objectKey,
+      Body: body,
+      ContentType: contentType,
+    }),
+  );
+}
+
+export async function deleteMinioObject(objectKey: string): Promise<void> {
+  await minioClient.send(
+    new DeleteObjectCommand({
+      Bucket: minioBucket,
+      Key: objectKey,
+    }),
+  );
+}
 
 export async function ensureMinioBucket(): Promise<void> {
   try {
