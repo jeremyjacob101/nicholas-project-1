@@ -5,7 +5,8 @@ import {
 import { Client } from "minio";
 import "./config.ts";
 
-const endpoint = `http://${process.env.APP_HOST}:${process.env.MINIO_API_HOST_PORT}`;
+const minioHost = process.env.APP_HOST!;
+const endpoint = `http://${minioHost}:${process.env.MINIO_API_HOST_PORT}`;
 const secretAccessKey = process.env.MINIO_ROOT_PASSWORD!;
 const accessKeyId = process.env.MINIO_ROOT_USER!;
 const minioBucket = process.env.MINIO_BUCKET!;
@@ -14,7 +15,7 @@ const region = process.env.MINIO_REGION!;
 export const PRESIGNED_UPLOAD_URL_EXPIRATION_SECONDS = 5 * 60;
 
 const minioClient = new Client({
-  endPoint: process.env.APP_HOST!,
+  endPoint: minioHost,
   port: Number(process.env.MINIO_API_HOST_PORT),
   useSSL: false,
   pathStyle: true,

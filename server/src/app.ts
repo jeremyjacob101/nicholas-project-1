@@ -11,6 +11,10 @@ const app = express();
 app.use(cors({ origin: CLIENT_ORIGIN }));
 app.use(express.json());
 
+app.get("/health", (_request, response) => {
+  response.json({ status: "ok" });
+});
+
 app.use("/api/users", userRoutes);
 app.use("/api/uploads", uploadRoutes);
 

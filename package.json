@@ -1,6 +1,7 @@
 {
   "name": "research-image-upload-1",
   "private": true,
+  "type": "module",
   "workspaces": [
     "client",
     "server"
@@ -8,6 +9,10 @@
   "scripts": {
     "dev": "npm run dev --workspace=client",
     "server": "npm run server --workspace=server",
+    "test": "npm run test:unit && npm run test:integration",
+    "test:unit": "vitest run --project unit",
+    "test:integration": "vitest run --project integration",
+    "test:watch": "vitest",
     "format": "prettier . --write",
     "format:check": "prettier . --check"
   },
