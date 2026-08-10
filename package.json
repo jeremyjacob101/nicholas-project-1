@@ -9,14 +9,16 @@
   "scripts": {
     "dev": "npm run dev --workspace=client",
     "server": "npm run server --workspace=server",
-    "test": "npm run test:unit && npm run test:integration",
+    "test": "npm run test:unit && npm run test:integration && npm run test:e2e",
     "test:unit": "vitest run --project unit",
     "test:integration": "vitest run --project integration",
+    "test:e2e": "playwright test --config=playwright.config.ts",
     "test:watch": "vitest",
     "format": "prettier . --write",
     "format:check": "prettier . --check"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
     "prettier": "^3.9.6"
   }
 }

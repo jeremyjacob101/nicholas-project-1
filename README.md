@@ -94,9 +94,12 @@ Additional checks:
 ```sh
 npm run test:unit
 npm run test:integration
+npm run test:e2e
 npm run lint --workspace=client
 npm run build --workspace=client
 ```
+
+`npm test` runs unit, integration, and browser E2E tests. The E2E suite starts the local PostgreSQL and MinIO services if needed, seeds the schema, launches the API/frontend, and covers Alice’s browser upload/download flow, Bob’s cross-company denial, and visible validation errors. It leaves the local Docker services running for subsequent development.
 
 The required authorization tests cover Hospital A creating/accessing its own record, Hospital B being denied Hospital A’s record and download URL, and invalid or missing upload metadata being rejected.
 
