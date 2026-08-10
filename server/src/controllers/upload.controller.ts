@@ -1,11 +1,14 @@
-import type { InitiatedUpload } from "../../../shared/types/upload.ts";
-import type { UserRecord } from "../../../shared/types/user.ts";
-import { findUserById } from "../models/user.model.ts";
+import type { CurrentUserLocals } from "../../../shared/types/user.ts";
 import type { Request, Response } from "express";
 import type { BucketItemStat } from "minio";
 import { randomUUID } from "node:crypto";
+import type {
+  InitiatedUpload,
+  PresignedDownload,
+} from "../../../shared/types/upload.ts";
 import {
   describeMinioError,
+  getPresignedUrlExpiresAt,
   isMinioObjectNotFound,
 } from "../helpers/storage.helper.ts";
 import {
@@ -23,36 +26,17 @@ import {
   updateUploadStatus,
 } from "../models/upload.model.ts";
 import {
+  createPresignedMinioDownloadUrl,
   createPresignedMinioUploadUrl,
   deleteMinioObject,
   getMinioObjectStat,
-  PRESIGNED_UPLOAD_URL_EXPIRATION_SECONDS,
 } from "../minio.ts";
 
-async function getCurrentUser(
-  request: Request,
-  response: Response,
-): Promise<UserRecord | null> {
-  const devUserId = request.header("X-Dev-User-Id");
-
-  if (!devUserId) {
-    response.status(401).json({ error: "A current user is required" });
-    return null;
-  }
-
-  const user = await findUserById(devUserId);
-
-  if (!user) {
-    response.status(401).json({ error: "Invalid current user" });
-    return null;
-  }
-
-  return user;
-}
+type CurrentUserResponse = Response<unknown, CurrentUserLocals>;
 
 export async function initiateUpload(
   request: Request,
-  response: Response,
+  response: CurrentUserResponse,
 ): Promise<void> {
   const validation = validateInitiateUploadInput(request.body);
 
@@ -62,16 +46,11 @@ export async function initiateUpload(
   }
 
   const { input } = validation;
+  const user = response.locals.currentUser;
 
   let uploadId: string | undefined;
 
   try {
-    const user = await getCurrentUser(request, response);
-
-    if (!user) {
-      return;
-    }
-
     uploadId = randomUUID();
     const safeFilename = getSafeFilename(input.filename);
     const objectKey = `uploads/${user.company_id}/${uploadId}/${safeFilename}`;
@@ -94,9 +73,7 @@ export async function initiateUpload(
         status: upload.status,
       },
       uploadUrl,
-      expiresAt: new Date(
-        Date.now() + PRESIGNED_UPLOAD_URL_EXPIRATION_SECONDS * 1000,
-      ).toISOString(),
+      expiresAt: getPresignedUrlExpiresAt(),
     };
 
     response.status(201).json(initiatedUpload);
@@ -116,9 +93,10 @@ export async function initiateUpload(
 
 export async function confirmUpload(
   request: Request,
-  response: Response,
+  response: CurrentUserResponse,
 ): Promise<void> {
   const uploadId = request.params.uploadId;
+  const user = response.locals.currentUser;
 
   if (!isValidUploadId(uploadId)) {
     response.status(404).json({ error: "Upload not found" });
@@ -126,12 +104,6 @@ export async function confirmUpload(
   }
 
   try {
-    const user = await getCurrentUser(request, response);
-
-    if (!user) {
-      return;
-    }
-
     const upload = await findUploadRecordByIdAndCompanyId(
       uploadId,
       user.company_id,
@@ -208,15 +180,11 @@ export async function confirmUpload(
 
 export async function listUploads(
   request: Request,
-  response: Response,
+  response: CurrentUserResponse,
 ): Promise<void> {
+  const user = response.locals.currentUser;
+
   try {
-    const user = await getCurrentUser(request, response);
-
-    if (!user) {
-      return;
-    }
-
     const uploads = await findUploadsByCompanyId(user.company_id);
     response.json({ uploads });
   } catch (error) {
@@ -225,11 +193,12 @@ export async function listUploads(
   }
 }
 
-export async function getUpload(
+export async function getUploadDownloadUrl(
   request: Request,
-  response: Response,
+  response: CurrentUserResponse,
 ): Promise<void> {
   const uploadId = request.params.uploadId;
+  const user = response.locals.currentUser;
 
   if (!isValidUploadId(uploadId)) {
     response.status(404).json({ error: "Upload not found" });
@@ -237,16 +206,72 @@ export async function getUpload(
   }
 
   try {
-    const user = await getCurrentUser(request, response);
-
-    if (!user) {
-      return;
-    }
-
-    const upload = await findUploadByIdAndCompanyId(
+    const upload = await findUploadRecordByIdAndCompanyId(
       uploadId,
       user.company_id,
     );
+
+    if (!upload) {
+      response.status(404).json({ error: "Upload not found" });
+      return;
+    }
+
+    if (upload.status === "queued" || upload.status === "failed") {
+      response
+        .status(409)
+        .json({ error: "Upload is not available for download" });
+      return;
+    }
+
+    try {
+      await getMinioObjectStat(upload.object_key);
+    } catch (error) {
+      if (isMinioObjectNotFound(error)) {
+        await updateUploadStatus(upload.id, "failed");
+        response
+          .status(409)
+          .json({ error: "Upload is not available for download" });
+        return;
+      }
+
+      console.error(
+        "Failed to inspect downloaded MinIO object:",
+        describeMinioError(error),
+      );
+      response.status(500).json({ error: "Unable to prepare download" });
+      return;
+    }
+
+    const downloadUrl = await createPresignedMinioDownloadUrl(
+      upload.object_key,
+      upload.safe_filename,
+    );
+    const presignedDownload: PresignedDownload = {
+      downloadUrl,
+      expiresAt: getPresignedUrlExpiresAt(),
+    };
+
+    response.json(presignedDownload);
+  } catch (error) {
+    console.error("Failed to prepare download:", error);
+    response.status(500).json({ error: "Unable to prepare download" });
+  }
+}
+
+export async function getUpload(
+  request: Request,
+  response: CurrentUserResponse,
+): Promise<void> {
+  const uploadId = request.params.uploadId;
+  const user = response.locals.currentUser;
+
+  if (!isValidUploadId(uploadId)) {
+    response.status(404).json({ error: "Upload not found" });
+    return;
+  }
+
+  try {
+    const upload = await findUploadByIdAndCompanyId(uploadId, user.company_id);
 
     if (!upload) {
       response.status(404).json({ error: "Upload not found" });

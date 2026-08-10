@@ -19,4 +19,8 @@ export type UploadListProps = {
   uploads: AuthorizedUpload[];
   isLoading: boolean;
   error: string | null;
+  downloadError: string | null;
+  downloadingUploadId: string | null;
+  isDownloadDisabled: boolean;
+  onDownload: (uploadId: string) => void;
 };

@@ -10,6 +10,10 @@ const app = express();
 
 app.use(cors({ origin: CLIENT_ORIGIN }));
 app.use(express.json());
+app.use("/api", (_request, response, next) => {
+  response.set("Cache-Control", "no-store");
+  next();
+});
 
 app.get("/health", (_request, response) => {
   response.json({ status: "ok" });

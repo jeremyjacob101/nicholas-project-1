@@ -41,9 +41,7 @@ describe("safe upload filenames", () => {
 
 describe("upload ID validation", () => {
   test("accepts a valid UUID upload ID", () => {
-    expect(isValidUploadId("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa")).toBe(
-      true,
-    );
+    expect(isValidUploadId("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa")).toBe(true);
   });
 
   test.each([

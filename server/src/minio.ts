@@ -1,6 +1,7 @@
 import {
   describeMinioError,
   isBucketAlreadyAvailable,
+  PRESIGNED_URL_EXPIRATION_SECONDS,
 } from "./helpers/storage.helper.ts";
 import { Client } from "minio";
 import "./config.ts";
@@ -11,8 +12,6 @@ const secretAccessKey = process.env.MINIO_ROOT_PASSWORD!;
 const accessKeyId = process.env.MINIO_ROOT_USER!;
 const minioBucket = process.env.MINIO_BUCKET!;
 const region = process.env.MINIO_REGION!;
-
-export const PRESIGNED_UPLOAD_URL_EXPIRATION_SECONDS = 5 * 60;
 
 const minioClient = new Client({
   endPoint: minioHost,
@@ -38,7 +37,21 @@ export async function createPresignedMinioUploadUrl(
   return minioClient.presignedPutObject(
     minioBucket,
     objectKey,
-    PRESIGNED_UPLOAD_URL_EXPIRATION_SECONDS,
+    PRESIGNED_URL_EXPIRATION_SECONDS,
+  );
+}
+
+export async function createPresignedMinioDownloadUrl(
+  objectKey: string,
+  safeFilename: string,
+): Promise<string> {
+  return minioClient.presignedGetObject(
+    minioBucket,
+    objectKey,
+    PRESIGNED_URL_EXPIRATION_SECONDS,
+    {
+      "response-content-disposition": `attachment; filename="${safeFilename}"`,
+    },
   );
 }
 

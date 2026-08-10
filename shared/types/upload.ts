@@ -57,3 +57,8 @@ export type InitiatedUpload = {
   uploadUrl: string;
   expiresAt: string;
 };
+
+export type PresignedDownload = {
+  downloadUrl: string;
+  expiresAt: string;
+};

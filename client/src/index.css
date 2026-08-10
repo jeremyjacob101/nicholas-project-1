@@ -169,6 +169,12 @@ body {
   color: var(--text-h);
 }
 
+.upload-list-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
 .upload-status {
   padding: 2px 8px;
   color: var(--accent);
@@ -177,6 +183,23 @@ body {
   border-radius: 999px;
   font-size: 0.8rem;
   font-weight: 600;
+}
+
+.download-button {
+  padding: 6px 10px;
+  color: var(--text-h);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.download-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 
 .upload-list-details {

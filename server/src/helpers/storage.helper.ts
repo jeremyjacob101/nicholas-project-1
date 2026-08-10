@@ -1,5 +1,13 @@
 import type { MinioErrorShape } from "../../../shared/types/storage.ts";
 
+export const PRESIGNED_URL_EXPIRATION_SECONDS = 5 * 60;
+
+export function getPresignedUrlExpiresAt(): string {
+  return new Date(
+    Date.now() + PRESIGNED_URL_EXPIRATION_SECONDS * 1000,
+  ).toISOString();
+}
+
 export function getMinioErrorCode(error: unknown): string | undefined {
   if (!error || typeof error !== "object") {
     return undefined;

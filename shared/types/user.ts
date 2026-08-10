@@ -5,3 +5,7 @@ export type UserRecord = {
   company_id: string;
   company_name: string;
 };
+
+export type CurrentUserLocals = {
+  currentUser: UserRecord;
+};

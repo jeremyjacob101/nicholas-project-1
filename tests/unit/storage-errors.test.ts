@@ -1,12 +1,24 @@
 import {
   describeMinioError,
+  getPresignedUrlExpiresAt,
   getMinioErrorCode,
   isBucketAlreadyAvailable,
   isMinioObjectNotFound,
 } from "../../server/src/helpers/storage.helper.ts";
-import { describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
 
 describe("MinIO error helpers", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  test("calculates the presigned URL expiration time", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-10T08:00:00.000Z"));
+
+    expect(getPresignedUrlExpiresAt()).toBe("2026-08-10T08:05:00.000Z");
+  });
+
   test("reads MinIO error codes without assuming an Error instance", () => {
     expect(getMinioErrorCode(null)).toBeUndefined();
     expect(getMinioErrorCode({ code: "NoSuchKey" })).toBe("NoSuchKey");

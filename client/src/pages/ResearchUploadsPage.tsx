@@ -4,6 +4,7 @@ import { UserSelector } from "../components/users/UserSelector";
 import { UploadForm } from "../components/upload/UploadForm";
 import { UploadList } from "../components/upload/UploadList";
 import { useCreateUpload } from "../hooks/useCreateUpload";
+import { useDownloadUpload } from "../hooks/useDownloadUpload";
 import { useUploads } from "../hooks/useUploads";
 import { useUsers } from "../hooks/useUsers";
 import { useState } from "react";
@@ -18,6 +19,12 @@ export default function ResearchUploadsPage() {
     submitUpload,
     clearUpload,
   } = useCreateUpload();
+  const {
+    downloadingUploadId,
+    error: downloadError,
+    downloadUpload,
+    clearDownload,
+  } = useDownloadUpload();
 
   const activeUserId = selectedUserId || users[0]?.id || "";
   const {
@@ -39,8 +46,18 @@ export default function ResearchUploadsPage() {
     }
   }
 
+  async function handleDownload(uploadId: string) {
+    if (!activeUserId) {
+      return;
+    }
+
+    await downloadUpload(uploadId, activeUserId);
+    refreshUploads();
+  }
+
   function handleUserChange(userId: string) {
     clearUpload();
+    clearDownload();
     setSelectedUserId(userId);
   }
 
@@ -55,13 +72,13 @@ export default function ResearchUploadsPage() {
           users={users}
           selectedUserId={activeUserId}
           isLoading={areUsersLoading}
-          disabled={isCreating}
+          disabled={isCreating || downloadingUploadId !== null}
           error={usersError}
           onChange={handleUserChange}
         />
 
         <UploadForm
-          disabled={!activeUserId}
+          disabled={!activeUserId || downloadingUploadId !== null}
           isSubmitting={isCreating}
           error={uploadError}
           onSubmit={handleUploadSubmit}
@@ -72,6 +89,10 @@ export default function ResearchUploadsPage() {
           uploads={uploads}
           isLoading={areUploadsLoading}
           error={uploadsError}
+          downloadError={downloadError}
+          downloadingUploadId={downloadingUploadId}
+          isDownloadDisabled={isCreating || downloadingUploadId !== null}
+          onDownload={handleDownload}
         />
       </section>
     </main>

@@ -3,6 +3,7 @@ import type {
   CreatedUpload,
   InitiateUploadInput,
   InitiatedUpload,
+  PresignedDownload,
   UploadRecord,
 } from "../../shared/types/upload.ts";
 import type { UserRecord } from "../../shared/types/user.ts";
@@ -113,6 +114,46 @@ const INVALID_INITIATION_CASES: Array<
   ],
 ];
 
+type ProtectedUploadRequest = {
+  description: string;
+  options: RequestInit;
+  path: string;
+};
+
+const NONEXISTENT_UPLOAD_ID = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+
+const PROTECTED_UPLOAD_REQUESTS: ProtectedUploadRequest[] = [
+  {
+    description: "upload initialization",
+    path: "/api/uploads/init",
+    options: {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(createUploadInput()),
+    },
+  },
+  {
+    description: "upload listing",
+    path: "/api/uploads",
+    options: {},
+  },
+  {
+    description: "upload detail",
+    path: `/api/uploads/${NONEXISTENT_UPLOAD_ID}`,
+    options: {},
+  },
+  {
+    description: "upload confirmation",
+    path: `/api/uploads/${NONEXISTENT_UPLOAD_ID}/confirm`,
+    options: { method: "POST" },
+  },
+  {
+    description: "upload download",
+    path: `/api/uploads/${NONEXISTENT_UPLOAD_ID}/download`,
+    options: {},
+  },
+];
+
 let apiServer: Server | undefined;
 let apiUrl = "";
 let databasePool: Pool | undefined;
@@ -136,6 +177,14 @@ function getRequestHeaders(userId?: string): HeadersInit {
     "Content-Type": "application/json",
     ...(userId ? { "X-Dev-User-Id": userId } : {}),
   };
+}
+
+function withDevUserId(options: RequestInit, userId: string): RequestInit {
+  const headers = new Headers(options.headers);
+
+  headers.set("X-Dev-User-Id", userId);
+
+  return { ...options, headers };
 }
 
 async function requestApi<T>(
@@ -233,6 +282,15 @@ async function confirmUpload(
   );
 }
 
+async function getDownloadUrl(
+  uploadId: string,
+  userId = ALICE_ID,
+): Promise<ApiResult<PresignedDownload>> {
+  return requestApi<PresignedDownload>(`/api/uploads/${uploadId}/download`, {
+    headers: userId ? { "X-Dev-User-Id": userId } : {},
+  });
+}
+
 async function expectObjectToBeMissing(objectKey: string): Promise<void> {
   try {
     await getMinioObjectStat(objectKey);
@@ -309,15 +367,21 @@ afterAll(async () => {
   ]);
 });
 
-describe("application availability and development users", () => {
-  test("reports healthy and serves the seeded development users", async () => {
+describe("application availability", () => {
+  test("reports healthy", async () => {
     const health = await requestApi<{ status: string }>("/health");
+
+    expect(health.response.status).toBe(200);
+    expect(health.body).toEqual({ status: "ok" });
+  });
+});
+
+describe("development users", () => {
+  test("serves the seeded development users without a current user header", async () => {
     const users = await requestApi<{ users: UserRecord[] }>("/api/users", {
       headers: { Origin: integrationEnvironment.clientOrigin },
     });
 
-    expect(health.response.status).toBe(200);
-    expect(health.body).toEqual({ status: "ok" });
     expect(users.response.status).toBe(200);
     expect(users.response.headers.get("access-control-allow-origin")).toBe(
       integrationEnvironment.clientOrigin,
@@ -327,6 +391,28 @@ describe("application availability and development users", () => {
       expect.objectContaining({ id: BOB_ID, company_name: "Hospital B" }),
     ]);
   });
+});
+
+describe("current-user middleware", () => {
+  test.each(PROTECTED_UPLOAD_REQUESTS)(
+    "rejects missing and unknown users for $description",
+    async ({ options, path }) => {
+      const missingUser = await requestApi<{ error: string }>(path, options);
+      const unknownUser = await requestApi<{ error: string }>(
+        path,
+        withDevUserId(options, UNKNOWN_USER_ID),
+      );
+
+      for (const result of [missingUser, unknownUser]) {
+        expect(result.response.status).toBe(401);
+      }
+
+      expect(missingUser.body).toEqual({
+        error: "A current user is required",
+      });
+      expect(unknownUser.body).toEqual({ error: "Invalid current user" });
+    },
+  );
 });
 
 describe("upload initialization", () => {
@@ -691,5 +777,127 @@ describe("presigned upload and confirmation", () => {
         (record) => record.status === "uploaded",
       ),
     ).toBe(true);
+  });
+});
+
+describe("presigned downloads", () => {
+  test("allows an owner to download an uploaded object with a short-lived URL", async () => {
+    const image = SMALL_SVG_IMAGE;
+    const initiated = await initiateUpload({
+      content_length: Buffer.byteLength(image),
+    });
+
+    await putObject(initiated.body.uploadUrl, image, "image/svg+xml");
+    await confirmUpload(initiated.body.upload.id);
+
+    const download = await getDownloadUrl(initiated.body.upload.id);
+
+    expect(download.response.status).toBe(200);
+    expect(download.response.headers.get("cache-control")).toBe("no-store");
+    expect(Object.keys(download.body).sort()).toEqual([
+      "downloadUrl",
+      "expiresAt",
+    ]);
+    expect(download.body.downloadUrl).toContain("X-Amz-Expires=300");
+    expect(download.body.downloadUrl).not.toContain(
+      integrationEnvironment.minioRootPassword,
+    );
+    expect(
+      new URL(download.body.downloadUrl).searchParams.get(
+        "response-content-disposition",
+      ),
+    ).toBe('attachment; filename="scan.svg"');
+
+    const secondsUntilExpiry =
+      (Date.parse(download.body.expiresAt) - Date.now()) / 1_000;
+    expect(secondsUntilExpiry).toBeGreaterThan(280);
+    expect(secondsUntilExpiry).toBeLessThanOrEqual(300);
+
+    const storageResponse = await fetch(download.body.downloadUrl);
+    expect(storageResponse.status).toBe(200);
+    expect(storageResponse.headers.get("content-disposition")).toContain(
+      'attachment; filename="scan.svg"',
+    );
+    expect(await storageResponse.text()).toBe(image);
+  });
+
+  test("requires an uploaded object and marks a disappeared object as failed", async () => {
+    const queued = await initiateUpload();
+    const queuedDownload = await requestApi<{ error: string }>(
+      `/api/uploads/${queued.body.upload.id}/download`,
+      { headers: { "X-Dev-User-Id": ALICE_ID } },
+    );
+
+    expect(queuedDownload.response.status).toBe(409);
+    expect(queuedDownload.body).toEqual({
+      error: "Upload is not available for download",
+    });
+
+    const image = SMALL_SVG_IMAGE;
+    const initiated = await initiateUpload({
+      content_length: Buffer.byteLength(image),
+    });
+    const record = await getUploadRecord(initiated.body.upload.id);
+
+    await putObject(initiated.body.uploadUrl, image, "image/svg+xml");
+    await confirmUpload(initiated.body.upload.id);
+    await deleteMinioObject(record.object_key);
+
+    const missingObjectDownload = await requestApi<{ error: string }>(
+      `/api/uploads/${initiated.body.upload.id}/download`,
+      { headers: { "X-Dev-User-Id": ALICE_ID } },
+    );
+
+    expect(missingObjectDownload.response.status).toBe(409);
+    expect(missingObjectDownload.body).toEqual({
+      error: "Upload is not available for download",
+    });
+    expect((await getUploadRecord(initiated.body.upload.id)).status).toBe(
+      "failed",
+    );
+  });
+
+  test("does not reveal another company's uploaded object", async () => {
+    const image = SMALL_SVG_IMAGE;
+    const initiated = await initiateUpload({
+      content_length: Buffer.byteLength(image),
+    });
+
+    await putObject(initiated.body.uploadUrl, image, "image/svg+xml");
+    await confirmUpload(initiated.body.upload.id);
+
+    const bobAttempt = await requestApi<{ error: string }>(
+      `/api/uploads/${initiated.body.upload.id}/download`,
+      { headers: { "X-Dev-User-Id": BOB_ID } },
+    );
+    const missingAttempt = await requestApi<{ error: string }>(
+      "/api/uploads/dddddddd-dddd-4ddd-8ddd-dddddddddddd/download",
+      { headers: { "X-Dev-User-Id": BOB_ID } },
+    );
+    const malformedAttempt = await requestApi<{ error: string }>(
+      "/api/uploads/not-an-upload-id/download",
+      { headers: { "X-Dev-User-Id": BOB_ID } },
+    );
+
+    for (const attempt of [bobAttempt, missingAttempt, malformedAttempt]) {
+      expect(attempt.response.status).toBe(404);
+      expect(attempt.body).toEqual({ error: "Upload not found" });
+    }
+  });
+
+  test("requires a valid current user to request a download URL", async () => {
+    const initiated = await initiateUpload();
+    const missingUser = await requestApi<{ error: string }>(
+      `/api/uploads/${initiated.body.upload.id}/download`,
+    );
+    const unknownUser = await requestApi<{ error: string }>(
+      `/api/uploads/${initiated.body.upload.id}/download`,
+      { headers: { "X-Dev-User-Id": UNKNOWN_USER_ID } },
+    );
+
+    expect(missingUser.response.status).toBe(401);
+    expect(missingUser.body).toEqual({ error: "A current user is required" });
+    expect(unknownUser.response.status).toBe(401);
+    expect(unknownUser.body).toEqual({ error: "Invalid current user" });
   });
 });

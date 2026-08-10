@@ -3,6 +3,7 @@ import type {
   CreatedUpload,
   CreateUploadInput,
   InitiatedUpload,
+  PresignedDownload,
 } from "../../../shared/types/upload";
 import { apiFetch } from "./client";
 
@@ -14,6 +15,18 @@ export async function fetchUploads(
   });
 
   return data.uploads;
+}
+
+export async function getDownloadUrl(
+  uploadId: string,
+  userId: string,
+): Promise<PresignedDownload> {
+  return apiFetch<PresignedDownload>(
+    `/api/uploads/${encodeURIComponent(uploadId)}/download`,
+    {
+      headers: { "X-Dev-User-Id": userId },
+    },
+  );
 }
 
 async function uploadImageToMinio(
