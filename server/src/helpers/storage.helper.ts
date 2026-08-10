@@ -1,36 +1,21 @@
-import type { S3ErrorShape } from "../../../shared/types/storage.js";
+import type { MinioErrorShape } from "../../../shared/types/storage.js";
 
-export function getS3ErrorDetails(error: unknown): {
-  code: string | undefined;
-  statusCode: number | undefined;
-} {
+export function getMinioErrorCode(error: unknown): string | undefined {
   if (!error || typeof error !== "object") {
-    return { code: undefined, statusCode: undefined };
+    return undefined;
   }
 
-  const errorShape = error as S3ErrorShape;
-  const metadata =
-    errorShape.$metadata && typeof errorShape.$metadata === "object"
-      ? (errorShape.$metadata as Record<string, unknown>)
-      : undefined;
+  const errorShape = error as MinioErrorShape;
 
-  const code =
-    typeof errorShape.name === "string"
+  return typeof errorShape.code === "string"
+    ? errorShape.code
+    : typeof errorShape.name === "string"
       ? errorShape.name
-      : typeof errorShape.Code === "string"
-        ? errorShape.Code
-        : undefined;
-
-  const statusCode =
-    typeof metadata?.httpStatusCode === "number"
-      ? metadata.httpStatusCode
       : undefined;
-
-  return { code, statusCode };
 }
 
-export function describeS3Error(error: unknown): string {
-  const { code, statusCode } = getS3ErrorDetails(error);
+export function describeMinioError(error: unknown): string {
+  const code = getMinioErrorCode(error);
   const errorMessage = error instanceof Error ? error.message : undefined;
   const nestedMessages =
     error &&
@@ -45,7 +30,6 @@ export function describeS3Error(error: unknown): string {
       : [];
   const details = [
     code,
-    statusCode ? `HTTP ${statusCode}` : undefined,
     errorMessage,
     nestedMessages.length > 0 ? nestedMessages.join("; ") : undefined,
   ].filter(Boolean);
@@ -53,20 +37,8 @@ export function describeS3Error(error: unknown): string {
   return details.length > 0 ? details.join(", ") : "unknown storage error";
 }
 
-export function isBucketAlreadyAvailable(
-  code: string | undefined,
-  statusCode: number | undefined,
-): boolean {
-  return (
-    code === "BucketAlreadyOwnedByYou" ||
-    code === "BucketAlreadyExists" ||
-    statusCode === 409
-  );
-}
+export function isBucketAlreadyAvailable(error: unknown): boolean {
+  const code = getMinioErrorCode(error);
 
-export function isBucketNotFound(
-  code: string | undefined,
-  statusCode: number | undefined,
-): boolean {
-  return statusCode === 404 || code === "NotFound" || code === "NoSuchBucket";
+  return code === "BucketAlreadyOwnedByYou" || code === "BucketAlreadyExists";
 }

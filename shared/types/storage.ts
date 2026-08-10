@@ -1,5 +1,4 @@
-export type S3ErrorShape = {
+export type MinioErrorShape = {
   name?: unknown;
-  Code?: unknown;
-  $metadata?: unknown;
+  code?: unknown;
 };
