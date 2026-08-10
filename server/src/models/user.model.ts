@@ -1,5 +1,5 @@
-import type { UserRecord } from "../../../shared/types/user.js";
-import { pool } from "../database.js";
+import type { UserRecord } from "../../../shared/types/user.ts";
+import { pool } from "../database.ts";
 
 const userQuery = `
   SELECT

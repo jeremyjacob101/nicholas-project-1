@@ -1,5 +1,5 @@
-import { createUploadRecord } from "../controllers/upload.controller.js";
-import { parseImageUpload } from "../middleware/upload.middleware.js";
+import { createUploadRecord } from "../controllers/upload.controller.ts";
+import { parseImageUpload } from "../middleware/upload.middleware.ts";
 import { Router } from "express";
 
 const uploadRouter = Router();

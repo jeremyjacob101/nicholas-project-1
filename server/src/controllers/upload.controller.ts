@@ -1,13 +1,13 @@
-import { createUpload, updateUploadStatus } from "../models/upload.model.js";
-import type { CreatedUpload } from "../../../shared/types/upload.js";
-import { deleteMinioObject, uploadMinioObject } from "../minio.js";
-import { findUserById } from "../models/user.model.js";
+import { createUpload, updateUploadStatus } from "../models/upload.model.ts";
+import type { CreatedUpload } from "../../../shared/types/upload.ts";
+import { deleteMinioObject, uploadMinioObject } from "../minio.ts";
+import { findUserById } from "../models/user.model.ts";
 import type { Request, Response } from "express";
 import { randomUUID } from "node:crypto";
 import {
   getSafeFilename,
   getValidatedUploadRequest,
-} from "../helpers/upload.helper.js";
+} from "../helpers/upload.helper.ts";
 
 export async function createUploadRecord(
   request: Request,

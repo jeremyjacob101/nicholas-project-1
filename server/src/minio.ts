@@ -1,9 +1,9 @@
 import {
   describeMinioError,
   isBucketAlreadyAvailable,
-} from "./helpers/storage.helper.js";
+} from "./helpers/storage.helper.ts";
 import { Client } from "minio";
-import "./config.js";
+import "./config.ts";
 
 const endpoint = `http://${process.env.APP_HOST}:${process.env.MINIO_API_HOST_PORT}`;
 const secretAccessKey = process.env.MINIO_ROOT_PASSWORD!;

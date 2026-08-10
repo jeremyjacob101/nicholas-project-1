@@ -1,4 +1,4 @@
-import type { UserRecord } from "../types/user.js";
+import type { UserRecord } from "../types/user.ts";
 
 export type UserSelectorProps = {
   users: UserRecord[];

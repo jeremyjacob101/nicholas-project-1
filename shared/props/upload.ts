@@ -1,4 +1,4 @@
-import type { CreatedUpload, CreateUploadInput } from "../types/upload.js";
+import type { CreatedUpload, CreateUploadInput } from "../types/upload.ts";
 
 export type UploadFormProps = {
   isSubmitting: boolean;

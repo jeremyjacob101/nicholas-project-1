@@ -1,5 +1,5 @@
-import app from "./app.js";
-import { ensureMinioBucket } from "./minio.js";
+import { ensureMinioBucket } from "./minio.ts";
+import app from "./app.ts";
 
 const PORT = Number(process.env.PORT);
 const APP_HOST = process.env.APP_HOST!;

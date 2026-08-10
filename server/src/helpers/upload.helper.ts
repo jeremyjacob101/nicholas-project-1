@@ -2,7 +2,7 @@ import type { Request, Response } from "express";
 import type {
   CreateUploadInput,
   ValidatedUploadRequest,
-} from "../../../shared/types/upload.js";
+} from "../../../shared/types/upload.ts";
 
 export function getSafeFilename(filename: string): string {
   const filenameWithoutPath = filename.replaceAll("\\", "/").split("/").pop();

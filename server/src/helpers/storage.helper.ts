@@ -1,4 +1,4 @@
-import type { MinioErrorShape } from "../../../shared/types/storage.js";
+import type { MinioErrorShape } from "../../../shared/types/storage.ts";
 
 export function getMinioErrorCode(error: unknown): string | undefined {
   if (!error || typeof error !== "object") {

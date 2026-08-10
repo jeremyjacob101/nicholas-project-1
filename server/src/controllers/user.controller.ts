@@ -1,4 +1,4 @@
-import { findAllUsers } from "../models/user.model.js";
+import { findAllUsers } from "../models/user.model.ts";
 import type { Request, Response } from "express";
 
 export async function listUsers(

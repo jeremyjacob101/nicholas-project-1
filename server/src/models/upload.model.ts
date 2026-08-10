@@ -2,8 +2,8 @@ import type {
   CreateUploadRecordInput,
   UploadStatus,
   UploadRecord,
-} from "../../../shared/types/upload.js";
-import { pool } from "../database.js";
+} from "../../../shared/types/upload.ts";
+import { pool } from "../database.ts";
 
 export async function createUpload(
   input: CreateUploadRecordInput,

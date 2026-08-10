@@ -1,8 +1,8 @@
-import uploadRoutes from "./routes/upload.routes.js";
-import userRoutes from "./routes/user.routes.js";
+import uploadRoutes from "./routes/upload.routes.ts";
+import userRoutes from "./routes/user.routes.ts";
 import express from "express";
 import cors from "cors";
-import "./config.js";
+import "./config.ts";
 
 const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN;
 

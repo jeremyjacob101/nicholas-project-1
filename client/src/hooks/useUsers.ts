@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
 import type { UserRecord } from "../../../shared/types/user";
 import { fetchUsers } from "../api/users.api";
+import { useEffect, useState } from "react";
 
 export function useUsers() {
   const [users, setUsers] = useState<UserRecord[]>([]);

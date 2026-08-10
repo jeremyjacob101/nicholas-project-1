@@ -1,4 +1,4 @@
-import "./config.js";
+import "./config.ts";
 import pg from "pg";
 
 const { Pool } = pg;
