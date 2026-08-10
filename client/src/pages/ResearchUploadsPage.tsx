@@ -39,11 +39,8 @@ export default function ResearchUploadsPage() {
       return;
     }
 
-    const createdUpload = await submitUpload(values, activeUserId, file);
-
-    if (createdUpload) {
-      refreshUploads();
-    }
+    await submitUpload(values, activeUserId, file);
+    refreshUploads();
   }
 
   async function handleDownload(uploadId: string) {

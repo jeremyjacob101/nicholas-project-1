@@ -5,6 +5,7 @@ import type {
   InitiatedUpload,
   PresignedDownload,
   UploadRecord,
+  UploadStatus,
 } from "../../shared/types/upload.ts";
 import type { UserRecord } from "../../shared/types/user.ts";
 import {
@@ -307,6 +308,29 @@ async function expectObjectToBeMissing(objectKey: string): Promise<void> {
   throw new Error(`Expected ${objectKey} to be missing from MinIO`);
 }
 
+async function waitForUploadStatus(
+  uploadId: string,
+  expectedStatus: UploadStatus,
+): Promise<void> {
+  const timeoutAt = Date.now() + 3_000;
+
+  while (Date.now() < timeoutAt) {
+    const upload = await getUploadRecord(uploadId);
+
+    if (upload.status === expectedStatus) {
+      return;
+    }
+
+    await new Promise<void>((resolve) => {
+      setTimeout(resolve, 10);
+    });
+  }
+
+  throw new Error(
+    `Upload ${uploadId} did not reach status ${expectedStatus} in time`,
+  );
+}
+
 async function closeServer(server: Server): Promise<void> {
   await new Promise<void>((resolve, reject) => {
     server.close((error) => {
@@ -573,7 +597,7 @@ describe("company-scoped upload access", () => {
 });
 
 describe("presigned upload and confirmation", () => {
-  test("stores a browser-style upload privately and confirms it as uploaded", async () => {
+  test("stores a browser upload privately and processes it automatically", async () => {
     const image = SMALL_SVG_IMAGE;
     const initiated = await initiateUpload({
       content_length: Buffer.byteLength(image),
@@ -617,15 +641,33 @@ describe("presigned upload and confirmation", () => {
     );
     expect(anonymousGet.status).toBe(403);
 
-    const confirmation = await confirmUpload(initiated.body.upload.id);
+    const confirmationRequest = confirmUpload(initiated.body.upload.id);
+
+    await waitForUploadStatus(initiated.body.upload.id, "processing");
+
+    const uploadWhileProcessing = await getAuthorizedUpload(
+      initiated.body.upload.id,
+    );
+    expect(uploadWhileProcessing.response.status).toBe(200);
+    expect(uploadWhileProcessing.body.upload.status).toBe("processing");
+
+    const confirmation = await confirmationRequest;
     expect(confirmation.response.status).toBe(200);
     expect(confirmation.body).toEqual({
       id: initiated.body.upload.id,
-      status: "uploaded",
+      status: "completed",
     });
     expect((await getUploadRecord(initiated.body.upload.id)).status).toBe(
-      "uploaded",
+      "completed",
     );
+
+    const listed = await listAuthorizedUploads();
+    expect(listed.body.uploads).toEqual([
+      expect.objectContaining({
+        id: initiated.body.upload.id,
+        status: "completed",
+      }),
+    ]);
   });
 
   test("allows an owner to repeat confirmation without changing the result", async () => {
@@ -639,7 +681,7 @@ describe("presigned upload and confirmation", () => {
     expect(repeatedConfirmation.response.status).toBe(200);
     expect(repeatedConfirmation.body).toEqual({
       id: initiated.body.upload.id,
-      status: "uploaded",
+      status: "completed",
     });
   });
 
@@ -770,13 +812,65 @@ describe("presigned upload and confirmation", () => {
       Array.from({ length: uploadCount }, () => 200),
     );
     expect(confirmations.map(({ body }) => body)).toEqual(
-      uploadIds.map((id) => ({ id, status: "uploaded" })),
+      uploadIds.map((id) => ({ id, status: "completed" })),
     );
     expect(
       (await Promise.all(uploadIds.map(getUploadRecord))).every(
-        (record) => record.status === "uploaded",
+        (record) => record.status === "completed",
       ),
     ).toBe(true);
+  });
+});
+
+describe("automatic upload processing", () => {
+  test("marks processing as failed if the stored object disappears", async () => {
+    const image = SMALL_SVG_IMAGE;
+    const initiated = await initiateUpload({
+      content_length: Buffer.byteLength(image),
+    });
+    const record = await getUploadRecord(initiated.body.upload.id);
+
+    await putObject(initiated.body.uploadUrl, image, "image/svg+xml");
+
+    const confirmationRequest = confirmUpload(initiated.body.upload.id);
+    await waitForUploadStatus(initiated.body.upload.id, "processing");
+    await deleteMinioObject(record.object_key);
+
+    const confirmation = await confirmationRequest;
+    expect(confirmation.response.status).toBe(500);
+    expect(confirmation.body).toEqual({ error: "Unable to process upload" });
+    expect((await getUploadRecord(initiated.body.upload.id)).status).toBe(
+      "failed",
+    );
+  });
+
+  test("rejects duplicate and cross-company confirmation during processing", async () => {
+    const image = SMALL_SVG_IMAGE;
+    const initiated = await initiateUpload({
+      content_length: Buffer.byteLength(image),
+    });
+
+    await putObject(initiated.body.uploadUrl, image, "image/svg+xml");
+
+    const confirmationRequest = confirmUpload(initiated.body.upload.id);
+    await waitForUploadStatus(initiated.body.upload.id, "processing");
+
+    const duplicateAttempt = await confirmUpload(initiated.body.upload.id);
+    const bobAttempt = await confirmUpload(initiated.body.upload.id, BOB_ID);
+
+    expect(duplicateAttempt.response.status).toBe(409);
+    expect(duplicateAttempt.body).toEqual({
+      error: "Upload cannot be confirmed",
+    });
+    expect(bobAttempt.response.status).toBe(404);
+    expect(bobAttempt.body).toEqual({ error: "Upload not found" });
+
+    const confirmation = await confirmationRequest;
+    expect(confirmation.response.status).toBe(200);
+    expect(confirmation.body).toEqual({
+      id: initiated.body.upload.id,
+      status: "completed",
+    });
   });
 });
 

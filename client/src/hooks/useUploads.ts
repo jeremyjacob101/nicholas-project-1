@@ -5,6 +5,15 @@ import {
   type UploadsState,
 } from "../../../shared/types/upload";
 
+const UPLOAD_STATUS_POLL_INTERVAL_MS = 250;
+
+function shouldPollUploads(uploads: UploadsState["uploads"]): boolean {
+  return uploads.some(
+    ({ status }) =>
+      status === "uploaded" || status === "queued" || status === "processing",
+  );
+}
+
 export function useUploads(userId: string) {
   const [state, setState] = useState<UploadsState>(initialUploadsState);
   const [refreshVersion, setRefreshVersion] = useState(0);
@@ -19,26 +28,43 @@ export function useUploads(userId: string) {
     }
 
     let isActive = true;
+    let pollTimeout: ReturnType<typeof setTimeout> | undefined;
 
-    fetchUploads(userId)
-      .then((uploads) => {
-        if (isActive) {
+    function loadUploads(): void {
+      fetchUploads(userId)
+        .then((uploads) => {
+          if (!isActive) {
+            return;
+          }
+
           setState({ userId, refreshVersion, uploads, error: null });
-        }
-      })
-      .catch(() => {
-        if (isActive) {
-          setState({
-            userId,
-            refreshVersion,
-            uploads: [],
-            error: "Unable to load uploads",
-          });
-        }
-      });
+
+          if (shouldPollUploads(uploads)) {
+            pollTimeout = setTimeout(
+              loadUploads,
+              UPLOAD_STATUS_POLL_INTERVAL_MS,
+            );
+          }
+        })
+        .catch(() => {
+          if (isActive) {
+            setState({
+              userId,
+              refreshVersion,
+              uploads: [],
+              error: "Unable to load uploads",
+            });
+          }
+        });
+    }
+
+    loadUploads();
 
     return () => {
       isActive = false;
+      if (pollTimeout) {
+        clearTimeout(pollTimeout);
+      }
     };
   }, [refreshVersion, userId]);
 

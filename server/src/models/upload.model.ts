@@ -65,6 +65,25 @@ export async function updateUploadStatus(
   );
 }
 
+export async function transitionUploadStatus(
+  uploadId: string,
+  companyId: string,
+  currentStatus: UploadStatus,
+  nextStatus: UploadStatus,
+): Promise<boolean> {
+  const result = await pool.query<{ id: string }>(
+    `
+      UPDATE uploads
+      SET status = $4, updated_at = NOW()
+      WHERE id = $1 AND company_id = $2 AND status = $3
+      RETURNING id
+    `,
+    [uploadId, companyId, currentStatus, nextStatus],
+  );
+
+  return result.rowCount === 1;
+}
+
 export async function findUploadRecordByIdAndCompanyId(
   uploadId: string,
   companyId: string,
