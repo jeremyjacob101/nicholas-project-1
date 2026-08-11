@@ -15,7 +15,19 @@ const exampleEnvironment = existsSync(exampleEnvironmentFile)
 const localEnvironment = existsSync(localEnvironmentFile)
   ? dotenv.parse(readFileSync(localEnvironmentFile))
   : {};
-const environment = { ...exampleEnvironment, ...localEnvironment };
+const environment = {
+  ...exampleEnvironment,
+  ...localEnvironment,
+  APP_HOST:
+    process.env.APP_HOST ??
+    localEnvironment.APP_HOST ??
+    exampleEnvironment.APP_HOST,
+  PORT: process.env.PORT ?? localEnvironment.PORT ?? exampleEnvironment.PORT,
+  VITE_PORT:
+    process.env.VITE_PORT ??
+    localEnvironment.VITE_PORT ??
+    exampleEnvironment.VITE_PORT,
+};
 
 for (const [name, value] of Object.entries(environment)) {
   if (name.startsWith("VITE_")) {
@@ -23,7 +35,7 @@ for (const [name, value] of Object.entries(environment)) {
   }
 }
 
-process.env.VITE_API_URL = `http://${environment.APP_HOST}:${environment.PORT}`;
+process.env.VITE_API_URL ??= `http://${environment.APP_HOST}:${environment.PORT}`;
 
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
@@ -32,6 +44,10 @@ export default defineConfig(({ mode }) => {
   return {
     envDir,
     plugins: [react()],
-    server: { port: Number(env.VITE_PORT), strictPort: true },
+    server: {
+      host: process.env.APP_HOST ?? env.APP_HOST,
+      port: Number(process.env.VITE_PORT ?? env.VITE_PORT),
+      strictPort: true,
+    },
   };
 });

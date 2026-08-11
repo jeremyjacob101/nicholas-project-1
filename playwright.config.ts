@@ -1,8 +1,10 @@
 import { defineConfig } from "@playwright/test";
-import { e2eEnvironment } from "./tests/helpers/e2e-environment.ts";
+import {
+  e2eEnvironment,
+  e2eProcessEnvironment,
+} from "./tests/helpers/e2e-environment.ts";
 
 export default defineConfig({
-  globalSetup: "./tests/helpers/start-e2e-services.ts",
   testDir: "./tests/e2e",
   testMatch: "**/*.spec.ts",
   fullyParallel: false,
@@ -11,8 +13,8 @@ export default defineConfig({
   expect: {
     timeout: 5_000,
   },
-  forbidOnly: Boolean(process.env.CI),
-  retries: process.env.CI ? 2 : 0,
+  forbidOnly: Boolean(e2eProcessEnvironment.CI),
+  retries: e2eProcessEnvironment.CI ? 2 : 0,
   reporter: [
     ["list"],
     ["html", { outputFolder: "playwright-report", open: "never" }],
@@ -26,15 +28,17 @@ export default defineConfig({
   webServer: [
     {
       command: "npm run server",
+      env: e2eProcessEnvironment,
       url: `${e2eEnvironment.apiUrl}/health`,
       timeout: 120_000,
-      reuseExistingServer: !process.env.CI,
+      reuseExistingServer: false,
     },
     {
       command: "npm run dev",
+      env: e2eProcessEnvironment,
       url: e2eEnvironment.clientUrl,
       timeout: 120_000,
-      reuseExistingServer: !process.env.CI,
+      reuseExistingServer: false,
     },
   ],
 });

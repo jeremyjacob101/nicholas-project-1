@@ -16,12 +16,13 @@ docker compose exec -T postgres psql \
   -d research_uploads < server/sql/schema.sql
 ```
 
-If you need to discard an older local database and MinIO bucket, run this before
-the `docker compose up` command above:
+If you need to discard an older local database and MinIO bucket, run this before the `docker compose up` command above:
 
 ```sh
 docker compose down -v
 ```
+
+Change `research_uploads_user` and `research_uploads` to values from your .env if you want your own credentials.
 
 The schema command creates the tables and seeds Alice at Hospital A and Bob at Hospital B. The API creates the private `research-images` bucket automatically when it starts.
 
@@ -99,7 +100,7 @@ Presigned URLs are safer than exposing MinIO credentials because they grant temp
 Run the complete suite:
 
 ```sh
-npm test
+npm run test
 ```
 
 Unit tests cover validation, storage errors, authentication middleware, processing failures/timeouts, and frontend polling. Integration tests use isolated PostgreSQL and MinIO containers, so they do not use the normal local database or bucket.
@@ -114,7 +115,7 @@ npm run lint --workspace=client
 npm run build --workspace=client
 ```
 
-`npm test` runs unit, integration, and browser E2E tests. The E2E suite starts the local PostgreSQL and MinIO services if needed, seeds the schema, launches the API/frontend, and covers Alice’s browser upload/download flow, Bob’s cross-company denial, and visible validation errors. It leaves the local Docker services running for subsequent development.
+`npm run test` runs unit, integration, and browser E2E tests. The E2E suite starts a dedicated Docker Compose project with disposable PostgreSQL and MinIO volumes, seeds the schema, launches the API/frontend against those services, covers Alice’s browser upload/download flow, Bob’s cross-company denial, and visible validation errors, then removes the dedicated project and its volumes. It does not touch the normal local development database or bucket.
 
 The required authorization tests cover Hospital A creating/accessing its own record, Hospital B being denied Hospital A’s record and download URL, and invalid or missing upload metadata being rejected.
 
