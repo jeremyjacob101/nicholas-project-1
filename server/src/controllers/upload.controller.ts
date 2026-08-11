@@ -167,7 +167,7 @@ export async function getUploadDownloadUrl(
       return;
     }
 
-    if (upload.status === "queued" || upload.status === "failed") {
+    if (upload.status !== "completed") {
       response
         .status(409)
         .json({ error: "Upload is not available for download" });

@@ -9,27 +9,8 @@ import {
   type StartedTestContainer,
   Wait,
 } from "testcontainers";
+import type { IntegrationEnvironment } from "./integration-environment.ts";
 import type { TestProject } from "vitest/node";
-
-type IntegrationEnvironment = {
-  appHost: string;
-  clientOrigin: string;
-  minioBucket: string;
-  minioPort: string;
-  minioRootPassword: string;
-  minioRootUser: string;
-  minioRegion: string;
-  postgresDatabase: string;
-  postgresPassword: string;
-  postgresPort: string;
-  postgresUser: string;
-};
-
-declare module "vitest" {
-  export interface ProvidedContext {
-    integrationEnvironment: IntegrationEnvironment;
-  }
-}
 
 const MINIO_IMAGE = "minio/minio:RELEASE.2025-05-24T17-08-30Z";
 const POSTGRES_IMAGE = "postgres:18.4";

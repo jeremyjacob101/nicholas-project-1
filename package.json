@@ -14,6 +14,7 @@
     "test:integration": "vitest run --project integration",
     "test:e2e": "node --import tsx tests/helpers/run-e2e-tests.ts",
     "test:watch": "vitest",
+    "typecheck": "tsc -b client/tsconfig.json --pretty false && tsc --noEmit -p server/tsconfig.json && tsc --noEmit -p tests/tsconfig.json",
     "format": "prettier . --write",
     "format:check": "prettier . --check"
   },

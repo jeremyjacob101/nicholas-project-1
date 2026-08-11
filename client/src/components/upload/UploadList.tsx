@@ -70,8 +70,7 @@ export function UploadList({
           </div>
           <ul className="upload-list">
             {uploads.map((upload) => {
-              const isDownloadable =
-                upload.status !== "queued" && upload.status !== "failed";
+              const isDownloadable = upload.status === "completed";
               const isDownloading = downloadingUploadId === upload.id;
 
               return (

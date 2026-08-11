@@ -794,7 +794,7 @@ describe("automatic upload processing", () => {
 });
 
 describe("presigned downloads", () => {
-  test("allows an owner to download an uploaded object with a short-lived URL", async () => {
+  test("allows an owner to download a completed object with a short-lived URL", async () => {
     const image = SMALL_SVG_IMAGE;
     const initiated = await initiateUpload({
       content_length: Buffer.byteLength(image),
@@ -802,6 +802,7 @@ describe("presigned downloads", () => {
 
     await putObject(initiated.body.uploadUrl, image, "image/svg+xml");
     await confirmUpload(initiated.body.upload.id);
+    await waitForUploadStatus(initiated.body.upload.id, "completed");
 
     const download = await getDownloadUrl(initiated.body.upload.id);
 
@@ -826,7 +827,33 @@ describe("presigned downloads", () => {
     expect(await storageResponse.text()).toBe(image);
   });
 
-  test("requires an uploaded object and marks a disappeared object as failed", async () => {
+  test.each(["uploaded", "queued", "processing", "failed"] as const)(
+    "rejects a %s upload even when its object exists",
+    async (status) => {
+      const image = SMALL_SVG_IMAGE;
+      const initiated = await initiateUpload({
+        content_length: Buffer.byteLength(image),
+      });
+
+      await putObject(initiated.body.uploadUrl, image, "image/svg+xml");
+      await getPool().query(
+        "UPDATE uploads SET status = $2, updated_at = NOW() WHERE id = $1",
+        [initiated.body.upload.id, status],
+      );
+
+      const download = await requestApi<{ error: string }>(
+        `/api/uploads/${initiated.body.upload.id}/download`,
+        { headers: { "X-Dev-User-Id": ALICE_ID } },
+      );
+
+      expect(download.response.status).toBe(409);
+      expect(download.body).toEqual({
+        error: "Upload is not available for download",
+      });
+    },
+  );
+
+  test("requires a completed object and marks a disappeared object as failed", async () => {
     const queued = await initiateUpload();
     const queuedDownload = await requestApi<{ error: string }>(
       `/api/uploads/${queued.body.upload.id}/download`,
@@ -846,6 +873,7 @@ describe("presigned downloads", () => {
 
     await putObject(initiated.body.uploadUrl, image, "image/svg+xml");
     await confirmUpload(initiated.body.upload.id);
+    await waitForUploadStatus(initiated.body.upload.id, "completed");
     await deleteMinioObject(record.object_key);
 
     const missingObjectDownload = await requestApi<{ error: string }>(
@@ -870,6 +898,7 @@ describe("presigned downloads", () => {
 
     await putObject(initiated.body.uploadUrl, image, "image/svg+xml");
     await confirmUpload(initiated.body.upload.id);
+    await waitForUploadStatus(initiated.body.upload.id, "completed");
 
     const bobAttempt = await requestApi<{ error: string }>(
       `/api/uploads/${initiated.body.upload.id}/download`,

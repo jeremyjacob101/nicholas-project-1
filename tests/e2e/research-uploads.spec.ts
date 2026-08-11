@@ -55,7 +55,14 @@ async function uploadImage(
   await page.getByRole("button", { name: "Upload Image" }).click();
 
   const row = page.locator(".upload-list-item").filter({ hasText: filename });
+  const downloadButton = row.getByRole("button", {
+    name: `Download ${filename}`,
+  });
+
+  await expect(row).toBeVisible();
+  await expect(downloadButton).toBeDisabled();
   await expect(row).toContainText("completed", { timeout: 15_000 });
+  await expect(downloadButton).toBeEnabled();
   await expect(page.getByLabel("Sample ID")).toHaveValue("");
   await expect(page.getByLabel("Classification")).toHaveValue("");
   await expect(page.getByLabel("File")).toHaveValue("");
