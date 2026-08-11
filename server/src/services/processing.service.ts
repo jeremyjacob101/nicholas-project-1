@@ -3,6 +3,7 @@ import { transitionUploadStatus } from "../models/upload.model.ts";
 import { getMinioObjectStat } from "../minio.ts";
 import {
   PROCESSING_TIMEOUT_MS,
+  SIMULATED_QUEUE_DURATION_MS,
   SIMULATED_PROCESSING_DURATION_MS,
 } from "../helpers/upload.helper.ts";
 
@@ -59,17 +60,9 @@ export async function processConfirmedUpload(
   companyId: string,
   objectKey: string,
 ): Promise<void> {
-  let currentStatus: UploadStatus = "queued";
+  let currentStatus: UploadStatus = "uploaded";
 
   async function runProcessingStages(): Promise<void> {
-    await transitionProcessingStatus(
-      uploadId,
-      companyId,
-      currentStatus,
-      "uploaded",
-    );
-    currentStatus = "uploaded";
-
     await transitionProcessingStatus(
       uploadId,
       companyId,
@@ -77,6 +70,8 @@ export async function processConfirmedUpload(
       "queued",
     );
     currentStatus = "queued";
+
+    await wait(SIMULATED_QUEUE_DURATION_MS);
 
     await transitionProcessingStatus(
       uploadId,

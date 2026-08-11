@@ -4,9 +4,13 @@ import type {
 } from "../../../shared/types/upload.ts";
 
 export const PROCESSING_TIMEOUT_MS = 5_000;
+export const PROCESSING_START_DELAY_MS = 250;
+export const SIMULATED_QUEUE_DURATION_MS = 500;
 export const MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024;
 export const SIMULATED_PROCESSING_DURATION_MS = 3_000;
+
 export const activeProcessingUploadIds = new Set<string>();
+
 const IMAGE_MIME_TYPE_PATTERN = /^image\/[a-z0-9][a-z0-9.+-]*$/;
 const UPLOAD_ID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;

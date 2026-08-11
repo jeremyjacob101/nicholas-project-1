@@ -1,10 +1,10 @@
+import { requireCurrentUser } from "../middleware/require-current-user.middleware.ts";
 import {
   confirmUpload,
   getUploadDownloadUrl,
   initiateUpload,
   listUploads,
 } from "../controllers/upload.controller.ts";
-import { requireCurrentUser } from "../middleware/require-current-user.middleware.ts";
 import { Router } from "express";
 
 const uploadRouter = Router();

@@ -298,7 +298,7 @@ async function waitForUploadStatus(
   uploadId: string,
   expectedStatus: UploadStatus,
 ): Promise<void> {
-  const timeoutAt = Date.now() + 3_000;
+  const timeoutAt = Date.now() + 6_000;
 
   while (Date.now() < timeoutAt) {
     const upload = await getUploadRecord(uploadId);
@@ -577,13 +577,14 @@ describe("presigned upload and confirmation", () => {
     );
     expect(anonymousGet.status).toBe(403);
 
-    const confirmationRequest = confirmUpload(initiated.body.upload.id);
-
-    await waitForUploadStatus(initiated.body.upload.id, "processing");
-
-    const confirmation = await confirmationRequest;
+    const confirmation = await confirmUpload(initiated.body.upload.id);
     expect(confirmation.response.status).toBe(204);
     expect(confirmation.body).toBeUndefined();
+
+    expect((await getUploadRecord(initiated.body.upload.id)).status).toBe(
+      "uploaded",
+    );
+    await waitForUploadStatus(initiated.body.upload.id, "completed");
     expect((await getUploadRecord(initiated.body.upload.id)).status).toBe(
       "completed",
     );
@@ -603,6 +604,7 @@ describe("presigned upload and confirmation", () => {
 
     await putObject(initiated.body.uploadUrl, image, "image/png");
     await confirmUpload(initiated.body.upload.id);
+    await waitForUploadStatus(initiated.body.upload.id, "completed");
 
     const repeatedConfirmation = await confirmUpload(initiated.body.upload.id);
     expect(repeatedConfirmation.response.status).toBe(204);
@@ -736,11 +738,9 @@ describe("presigned upload and confirmation", () => {
       Array.from({ length: uploadCount }, () => 204),
     );
     expect(confirmations.every(({ body }) => body === undefined)).toBe(true);
-    expect(
-      (await Promise.all(uploadIds.map(getUploadRecord))).every(
-        (record) => record.status === "completed",
-      ),
-    ).toBe(true);
+    await Promise.all(
+      uploadIds.map((uploadId) => waitForUploadStatus(uploadId, "completed")),
+    );
   });
 });
 
@@ -754,13 +754,13 @@ describe("automatic upload processing", () => {
 
     await putObject(initiated.body.uploadUrl, image, "image/svg+xml");
 
-    const confirmationRequest = confirmUpload(initiated.body.upload.id);
+    const confirmation = await confirmUpload(initiated.body.upload.id);
     await waitForUploadStatus(initiated.body.upload.id, "processing");
     await deleteMinioObject(record.object_key);
 
-    const confirmation = await confirmationRequest;
-    expect(confirmation.response.status).toBe(500);
-    expect(confirmation.body).toEqual({ error: "Unable to process upload" });
+    expect(confirmation.response.status).toBe(204);
+    expect(confirmation.body).toBeUndefined();
+    await waitForUploadStatus(initiated.body.upload.id, "failed");
     expect((await getUploadRecord(initiated.body.upload.id)).status).toBe(
       "failed",
     );

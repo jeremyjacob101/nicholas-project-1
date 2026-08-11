@@ -1,5 +1,5 @@
-import type { Response } from "express";
 import type { CurrentUserLocals } from "./user.ts";
+import type { Response } from "express";
 
 export type CurrentUserResponse = Response<unknown, CurrentUserLocals>;
 
@@ -13,13 +13,13 @@ export type StoredImageValidationResult =
 
 export type ConfirmUploadResult =
   | { kind: "not-found" }
+  | { kind: "uploaded" }
   | { kind: "completed" }
   | { kind: "unavailable" }
   | { kind: "missing-object" }
   | { kind: "storage-error" }
   | { kind: "invalid-image"; error: string }
-  | { kind: "already-processing" }
-  | { kind: "processing-error" };
+  | { kind: "already-processing" };
 
 export type CreateUploadInput = {
   sample_id: string;

@@ -1,4 +1,3 @@
-import { activeProcessingUploadIds } from "../helpers/upload.helper.ts";
 import { deleteMinioObject, getMinioObjectStat } from "../minio.ts";
 import { processConfirmedUpload } from "./processing.service.ts";
 import type { BucketItemStat } from "minio";
@@ -12,6 +11,10 @@ import {
   describeMinioError,
   isMinioObjectNotFound,
 } from "../helpers/storage.helper.ts";
+import {
+  activeProcessingUploadIds,
+  PROCESSING_START_DELAY_MS,
+} from "../helpers/upload.helper.ts";
 import {
   MAX_IMAGE_SIZE_BYTES,
   isImageContentType,
@@ -120,12 +123,21 @@ export async function confirmUploadForCompany(
   activeProcessingUploadIds.add(upload.id);
 
   try {
-    await processConfirmedUpload(upload.id, companyId, upload.object_key);
-    return { kind: "completed" };
+    await updateUploadStatus(upload.id, "uploaded");
   } catch (error) {
-    console.error("Failed to process confirmed upload:", error);
-    return { kind: "processing-error" };
-  } finally {
     activeProcessingUploadIds.delete(upload.id);
+    throw error;
   }
+
+  setTimeout(() => {
+    void processConfirmedUpload(upload.id, companyId, upload.object_key)
+      .catch((error) => {
+        console.error("Failed to process confirmed upload:", error);
+      })
+      .finally(() => {
+        activeProcessingUploadIds.delete(upload.id);
+      });
+  }, PROCESSING_START_DELAY_MS);
+
+  return { kind: "uploaded" };
 }

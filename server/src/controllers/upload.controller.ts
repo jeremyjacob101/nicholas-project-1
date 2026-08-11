@@ -118,6 +118,7 @@ export async function confirmUpload(
       case "not-found":
         response.status(404).json({ error: "Upload not found" });
         return;
+      case "uploaded":
       case "completed":
         response.status(204).send();
         return;
@@ -135,9 +136,6 @@ export async function confirmUpload(
         return;
       case "already-processing":
         response.status(409).json({ error: "Upload is already processing" });
-        return;
-      case "processing-error":
-        response.status(500).json({ error: "Unable to process upload" });
         return;
     }
   } catch (error) {

@@ -1,6 +1,6 @@
 import type { UploadListProps } from "../../../../shared/props/upload";
-import type { IconName } from "../../../../shared/types/icon";
 import type { UploadStatus } from "../../../../shared/types/upload";
+import type { IconName } from "../../../../shared/types/icon";
 import { Icon } from "../ui/Icon";
 
 function statusIconName(status: UploadStatus): IconName {

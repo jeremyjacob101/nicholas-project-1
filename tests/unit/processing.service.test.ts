@@ -32,7 +32,6 @@ describe("upload processing service", () => {
   });
 
   test.each([
-    ["queued", "uploaded"],
     ["uploaded", "queued"],
     ["queued", "processing"],
     ["processing", "completed"],
