@@ -9,25 +9,38 @@ async function selectDevelopmentUser(
   userName: string,
   companyName: string,
 ): Promise<string> {
-  const option = page
-    .locator("#current-user option")
-    .filter({ hasText: `${userName} — ${companyName}` });
-  const userId = await option.getAttribute("value");
+  const usersResponse = await page.request.get(
+    `${e2eEnvironment.apiUrl}/api/users`,
+  );
+  const users = (await usersResponse.json()) as {
+    users: Array<{
+      id: string;
+      name: string;
+      company_name: string;
+    }>;
+  };
+  const user = users.users.find(
+    (candidate) =>
+      candidate.name === userName && candidate.company_name === companyName,
+  );
 
-  if (!userId) {
+  if (!user) {
     throw new Error(`Could not find the development user ${userName}`);
   }
 
-  await page.getByLabel("Current user").selectOption(userId);
-  return userId;
+  await page.getByRole("button", { name: `Switch to ${userName}` }).click();
+  return user.id;
 }
 
 async function waitForUsers(page: Page): Promise<void> {
-  await expect(page.getByLabel("Current user")).toBeEnabled();
+  await expect(
+    page.getByRole("button", { name: "Switch to Alice" }),
+  ).toBeEnabled();
 }
 
 async function uploadImage(
   page: Page,
+  userId: string,
   filename: string,
   mimeType = "image/svg+xml",
   contents = SVG_IMAGE,
@@ -43,17 +56,29 @@ async function uploadImage(
 
   const row = page.locator(".upload-list-item").filter({ hasText: filename });
   await expect(row).toContainText("completed", { timeout: 15_000 });
+  await expect(page.getByLabel("Sample ID")).toHaveValue("");
+  await expect(page.getByLabel("Classification")).toHaveValue("");
+  await expect(page.getByLabel("File")).toHaveValue("");
+  await expect(page.locator(".file-dropzone-label strong")).toHaveText(
+    "Choose an image file",
+  );
 
-  const uploadId = await page
-    .locator(".result p")
-    .filter({ hasText: "ID:" })
-    .textContent();
+  const uploadsResponse = await page.request.get(
+    `${e2eEnvironment.apiUrl}/api/uploads`,
+    { headers: { "X-Dev-User-Id": userId } },
+  );
+  const uploads = (await uploadsResponse.json()) as {
+    uploads: Array<{ id: string; filename: string }>;
+  };
+  const upload = uploads.uploads.find(
+    (candidate) => candidate.filename === filename,
+  );
 
-  if (!uploadId) {
-    throw new Error("The completed upload did not display an upload ID");
+  if (!upload) {
+    throw new Error("The completed upload was not returned by the API");
   }
 
-  return uploadId.replace(/^ID:\s*/, "").trim();
+  return upload.id;
 }
 
 test.describe("research image uploads", () => {
@@ -62,10 +87,10 @@ test.describe("research image uploads", () => {
   }) => {
     await page.goto("/");
     await waitForUsers(page);
-    await selectDevelopmentUser(page, "Alice", "Hospital A");
+    const aliceId = await selectDevelopmentUser(page, "Alice", "Hospital A");
 
     const filename = `alice-${Date.now()}.svg`;
-    await uploadImage(page, filename);
+    await uploadImage(page, aliceId, filename);
 
     const row = page.locator(".upload-list-item").filter({ hasText: filename });
     const downloadPromise = page.waitForEvent("download");
@@ -89,9 +114,23 @@ test.describe("research image uploads", () => {
     await waitForUsers(page);
     const aliceId = await selectDevelopmentUser(page, "Alice", "Hospital A");
     const filename = `private-${Date.now()}.svg`;
-    const uploadId = await uploadImage(page, filename);
+    const uploadId = await uploadImage(page, aliceId, filename);
+
+    await page.getByLabel("Sample ID").fill("cleared-on-switch");
+    await page.getByLabel("Classification").fill("Temporary");
+    await page.getByLabel("File").setInputFiles({
+      name: "switch-me.svg",
+      mimeType: "image/svg+xml",
+      buffer: Buffer.from(SVG_IMAGE),
+    });
 
     const bobId = await selectDevelopmentUser(page, "Bob", "Hospital B");
+    await expect(page.getByLabel("Sample ID")).toHaveValue("");
+    await expect(page.getByLabel("Classification")).toHaveValue("");
+    await expect(page.getByLabel("File")).toHaveValue("");
+    await expect(page.locator(".file-dropzone-label strong")).toHaveText(
+      "Choose an image file",
+    );
     await expect(
       page.locator(".upload-list-item").filter({ hasText: filename }),
     ).toHaveCount(0);

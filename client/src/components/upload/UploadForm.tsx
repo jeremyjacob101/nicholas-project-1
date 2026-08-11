@@ -1,5 +1,6 @@
 import type { UploadFormProps } from "../../../../shared/props/upload";
 import type { SubmitEvent } from "react";
+import { Icon } from "../ui/Icon";
 import { useState } from "react";
 
 export function UploadForm({
@@ -35,7 +36,9 @@ export function UploadForm({
   return (
     <form className="form" onSubmit={handleSubmit}>
       <div className="field">
-        <label htmlFor="sample-id">Sample ID</label>
+        <label className="field-label" htmlFor="sample-id">
+          Sample ID
+        </label>
         <input
           id="sample-id"
           value={sampleId}
@@ -45,7 +48,9 @@ export function UploadForm({
       </div>
 
       <div className="field">
-        <label htmlFor="classification">Classification</label>
+        <label className="field-label" htmlFor="classification">
+          Classification
+        </label>
         <input
           id="classification"
           value={classification}
@@ -54,23 +59,37 @@ export function UploadForm({
         />
       </div>
 
-      <div className="field">
-        <label htmlFor="upload-file">File</label>
-        <input
-          id="upload-file"
-          type="file"
-          accept="image/*"
-          onChange={(event) => setFile(event.target.files?.[0] ?? null)}
-          required
-        />
+      <div className="field file-field">
+        <span className="field-label" id="file-label">
+          File
+        </span>
+        <div className="file-dropzone">
+          <input
+            id="upload-file"
+            aria-labelledby="file-label"
+            type="file"
+            accept="image/*"
+            onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+            required
+          />
+          <label className="file-dropzone-label" htmlFor="upload-file">
+            <Icon name={file ? "check" : "upload"} size={30} />
+            <strong>{file ? file.name : "Choose an image file"}</strong>
+            <span>PNG, JPG, or WEBP up to 10 MB</span>
+          </label>
+        </div>
       </div>
 
       {(fileError || error) && (
-        <p className="message error">{fileError ?? error}</p>
+        <p className="message error" role="alert">
+          <Icon name="alert" size={16} />
+          <span>{fileError ?? error}</span>
+        </p>
       )}
 
       <button type="submit" disabled={disabled || isSubmitting}>
-        {isSubmitting ? "Uploading..." : "Upload Image"}
+        <Icon name={isSubmitting ? "spinner" : "upload"} size={18} />
+        <span>{isSubmitting ? "Uploading..." : "Upload Image"}</span>
       </button>
     </form>
   );

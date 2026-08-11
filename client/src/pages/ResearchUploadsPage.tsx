@@ -1,19 +1,18 @@
-import { UploadRecordSummary } from "../components/upload/UploadRecordSummary";
 import type { CreateUploadInput } from "../../../shared/types/upload";
-import { UserSelector } from "../components/users/UserSelector";
+import { UserSwitcher } from "../components/users/UserSwitcher";
+import { useDownloadUpload } from "../hooks/useDownloadUpload";
 import { UploadForm } from "../components/upload/UploadForm";
 import { UploadList } from "../components/upload/UploadList";
 import { useCreateUpload } from "../hooks/useCreateUpload";
-import { useDownloadUpload } from "../hooks/useDownloadUpload";
 import { useUploads } from "../hooks/useUploads";
 import { useUsers } from "../hooks/useUsers";
+import { Icon } from "../components/ui/Icon";
 import { useState } from "react";
 
 export default function ResearchUploadsPage() {
   const { users, isLoading: areUsersLoading, error: usersError } = useUsers();
   const [selectedUserId, setSelectedUserId] = useState("");
   const {
-    upload,
     isCreating,
     error: uploadError,
     submitUpload,
@@ -25,6 +24,7 @@ export default function ResearchUploadsPage() {
     downloadUpload,
     clearDownload,
   } = useDownloadUpload();
+  const [formResetVersion, setFormResetVersion] = useState(0);
 
   const activeUserId = selectedUserId || users[0]?.id || "";
   const {
@@ -39,7 +39,13 @@ export default function ResearchUploadsPage() {
       return;
     }
 
-    await submitUpload(values, activeUserId, file);
+    const didUpload = await submitUpload(values, activeUserId, file);
+
+    if (!didUpload) {
+      return;
+    }
+
+    setFormResetVersion((version) => version + 1);
     refreshUploads();
   }
 
@@ -56,32 +62,57 @@ export default function ResearchUploadsPage() {
     clearUpload();
     clearDownload();
     setSelectedUserId(userId);
+    setFormResetVersion((version) => version + 1);
   }
 
+  const activeUserIndex = users.findIndex((user) => user.id === activeUserId);
+  const userTheme = activeUserIndex === 1 ? "theme-user-b" : "theme-user-a";
+
   return (
-    <main className="page">
+    <main className={`page ${userTheme}`}>
       <header className="page-header">
-        <h1>Secure Research Uploads</h1>
+        <div className="brand-lockup">
+          <span className="brand-mark" aria-hidden="true">
+            <Icon name="crosshair" size={34} />
+          </span>
+          <h1>Secure Research Uploads</h1>
+        </div>
+        <div className="header-actions">
+          <UserSwitcher
+            users={users}
+            selectedUserId={activeUserId}
+            disabled={
+              areUsersLoading || isCreating || downloadingUploadId !== null
+            }
+            onChange={handleUserChange}
+          />
+          <p className="workspace-context">Research workspace</p>
+        </div>
       </header>
 
-      <section className="panel">
-        <UserSelector
-          users={users}
-          selectedUserId={activeUserId}
-          isLoading={areUsersLoading}
-          disabled={isCreating || downloadingUploadId !== null}
-          error={usersError}
-          onChange={handleUserChange}
-        />
+      <div className="workspace-grid">
+        <section className="workspace-panel upload-panel">
+          <div className="section-heading">
+            <span className="section-rule" aria-hidden="true" />
+            <h2>Upload image</h2>
+          </div>
 
-        <UploadForm
-          disabled={!activeUserId || downloadingUploadId !== null}
-          isSubmitting={isCreating}
-          error={uploadError}
-          onSubmit={handleUploadSubmit}
-        />
+          {usersError ? (
+            <p className="message error user-error" role="alert">
+              <Icon name="alert" size={16} />
+              <span>{usersError}</span>
+            </p>
+          ) : null}
 
-        <UploadRecordSummary upload={upload} />
+          <UploadForm
+            key={activeUserId + "-" + formResetVersion}
+            disabled={!activeUserId || downloadingUploadId !== null}
+            isSubmitting={isCreating}
+            error={uploadError}
+            onSubmit={handleUploadSubmit}
+          />
+        </section>
+
         <UploadList
           uploads={uploads}
           isLoading={areUploadsLoading}
@@ -91,7 +122,7 @@ export default function ResearchUploadsPage() {
           isDownloadDisabled={isCreating || downloadingUploadId !== null}
           onDownload={handleDownload}
         />
-      </section>
+      </div>
     </main>
   );
 }
