@@ -1,9 +1,12 @@
 export type UserRecord = {
   id: string;
   name: string;
+  company_name: string;
+};
+
+export type CurrentUserRecord = UserRecord & {
   email: string;
   company_id: string;
-  company_name: string;
 };
 
 export type UserSwitcherProps = {
@@ -14,5 +17,5 @@ export type UserSwitcherProps = {
 };
 
 export type CurrentUserLocals = {
-  currentUser: UserRecord;
+  currentUser: CurrentUserRecord;
 };

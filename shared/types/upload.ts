@@ -13,7 +13,7 @@ export type StoredImageValidationResult =
 
 export type ConfirmUploadResult =
   | { kind: "not-found" }
-  | { kind: "completed"; id: string; status: "completed" }
+  | { kind: "completed" }
   | { kind: "unavailable" }
   | { kind: "missing-object" }
   | { kind: "storage-error" }
@@ -70,15 +70,13 @@ export const initialUploadsState: UploadsState = {
   error: null,
 };
 
-export type CreatedUpload = Pick<UploadRecord, "id" | "status">;
-
 export type InitiatedUpload = {
-  upload: CreatedUpload;
+  upload: {
+    id: string;
+  };
   uploadUrl: string;
-  expiresAt: string;
 };
 
 export type PresignedDownload = {
   downloadUrl: string;
-  expiresAt: string;
 };

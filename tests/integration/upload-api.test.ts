@@ -1,6 +1,5 @@
 import type {
   AuthorizedUpload,
-  CreatedUpload,
   InitiateUploadInput,
   InitiatedUpload,
   PresignedDownload,
@@ -139,11 +138,6 @@ const PROTECTED_UPLOAD_REQUESTS: ProtectedUploadRequest[] = [
     options: {},
   },
   {
-    description: "upload detail",
-    path: `/api/uploads/${NONEXISTENT_UPLOAD_ID}`,
-    options: {},
-  },
-  {
     description: "upload confirmation",
     path: `/api/uploads/${NONEXISTENT_UPLOAD_ID}/confirm`,
     options: { method: "POST" },
@@ -193,7 +187,8 @@ async function requestApi<T>(
   options: RequestInit = {},
 ): Promise<ApiResult<T>> {
   const response = await fetch(`${apiUrl}${path}`, options);
-  const body = (await response.json()) as T;
+  const body =
+    response.status === 204 ? (undefined as T) : ((await response.json()) as T);
 
   return { body, response };
 }
@@ -224,15 +219,6 @@ async function listAuthorizedUploads(
   userId = ALICE_ID,
 ): Promise<ApiResult<{ uploads: AuthorizedUpload[] }>> {
   return requestApi<{ uploads: AuthorizedUpload[] }>("/api/uploads", {
-    headers: { "X-Dev-User-Id": userId },
-  });
-}
-
-async function getAuthorizedUpload(
-  uploadId: string,
-  userId = ALICE_ID,
-): Promise<ApiResult<{ upload: AuthorizedUpload }>> {
-  return requestApi<{ upload: AuthorizedUpload }>(`/api/uploads/${uploadId}`, {
     headers: { "X-Dev-User-Id": userId },
   });
 }
@@ -273,8 +259,8 @@ async function putObject(
 async function confirmUpload(
   uploadId: string,
   userId = ALICE_ID,
-): Promise<ApiResult<CreatedUpload | { error: string }>> {
-  return requestApi<CreatedUpload | { error: string }>(
+): Promise<ApiResult<undefined | { error: string }>> {
+  return requestApi<undefined | { error: string }>(
     `/api/uploads/${uploadId}/confirm`,
     {
       method: "POST",
@@ -411,8 +397,8 @@ describe("development users", () => {
       integrationEnvironment.clientOrigin,
     );
     expect(users.body.users).toEqual([
-      expect.objectContaining({ id: ALICE_ID, company_id: ALICE_COMPANY_ID }),
-      expect.objectContaining({ id: BOB_ID, company_name: "Hospital B" }),
+      { id: ALICE_ID, name: "Alice", company_name: "Hospital A" },
+      { id: BOB_ID, name: "Bob", company_name: "Hospital B" },
     ]);
   });
 });
@@ -480,21 +466,12 @@ describe("upload initialization", () => {
     });
 
     expect(result.response.status).toBe(201);
-    expect(result.body.upload.status).toBe("queued");
-    expect(Object.keys(result.body).sort()).toEqual([
-      "expiresAt",
-      "upload",
-      "uploadUrl",
-    ]);
+    expect(Object.keys(result.body).sort()).toEqual(["upload", "uploadUrl"]);
+    expect(Object.keys(result.body.upload)).toEqual(["id"]);
     expect(result.body.uploadUrl).toContain("X-Amz-Expires=300");
     expect(result.body.uploadUrl).not.toContain(
       integrationEnvironment.minioRootPassword,
     );
-
-    const secondsUntilExpiry =
-      (Date.parse(result.body.expiresAt) - Date.now()) / 1_000;
-    expect(secondsUntilExpiry).toBeGreaterThan(280);
-    expect(secondsUntilExpiry).toBeLessThanOrEqual(300);
 
     const record = await getUploadRecord(result.body.upload.id);
     expect(record).toMatchObject({
@@ -553,47 +530,6 @@ describe("company-scoped upload access", () => {
       ]);
     }
   });
-
-  test("returns an owned upload but conceals cross-company and missing records", async () => {
-    const aliceUpload = await initiateUpload({ sample_id: "ALICE-PRIVATE" });
-    const uploadId = aliceUpload.body.upload.id;
-
-    const ownUpload = await getAuthorizedUpload(uploadId, ALICE_ID);
-    const bobAttempt = await requestApi<{ error: string }>(
-      `/api/uploads/${uploadId}`,
-      { headers: { "X-Dev-User-Id": BOB_ID } },
-    );
-    const missingAttempt = await requestApi<{ error: string }>(
-      "/api/uploads/dddddddd-dddd-4ddd-8ddd-dddddddddddd",
-      { headers: { "X-Dev-User-Id": BOB_ID } },
-    );
-    const malformedAttempt = await requestApi<{ error: string }>(
-      "/api/uploads/not-an-upload-id",
-      { headers: { "X-Dev-User-Id": BOB_ID } },
-    );
-
-    expect(ownUpload.response.status).toBe(200);
-    expect(ownUpload.body.upload).toMatchObject({
-      id: uploadId,
-      sample_id: "ALICE-PRIVATE",
-      filename: "scan.svg",
-      classification: "Research",
-      status: "queued",
-    });
-    expect(Object.keys(ownUpload.body.upload).sort()).toEqual([
-      "classification",
-      "created_at",
-      "filename",
-      "id",
-      "sample_id",
-      "status",
-    ]);
-
-    for (const attempt of [bobAttempt, missingAttempt, malformedAttempt]) {
-      expect(attempt.response.status).toBe(404);
-      expect(attempt.body).toEqual({ error: "Upload not found" });
-    }
-  });
 });
 
 describe("presigned upload and confirmation", () => {
@@ -645,18 +581,9 @@ describe("presigned upload and confirmation", () => {
 
     await waitForUploadStatus(initiated.body.upload.id, "processing");
 
-    const uploadWhileProcessing = await getAuthorizedUpload(
-      initiated.body.upload.id,
-    );
-    expect(uploadWhileProcessing.response.status).toBe(200);
-    expect(uploadWhileProcessing.body.upload.status).toBe("processing");
-
     const confirmation = await confirmationRequest;
-    expect(confirmation.response.status).toBe(200);
-    expect(confirmation.body).toEqual({
-      id: initiated.body.upload.id,
-      status: "completed",
-    });
+    expect(confirmation.response.status).toBe(204);
+    expect(confirmation.body).toBeUndefined();
     expect((await getUploadRecord(initiated.body.upload.id)).status).toBe(
       "completed",
     );
@@ -678,11 +605,8 @@ describe("presigned upload and confirmation", () => {
     await confirmUpload(initiated.body.upload.id);
 
     const repeatedConfirmation = await confirmUpload(initiated.body.upload.id);
-    expect(repeatedConfirmation.response.status).toBe(200);
-    expect(repeatedConfirmation.body).toEqual({
-      id: initiated.body.upload.id,
-      status: "completed",
-    });
+    expect(repeatedConfirmation.response.status).toBe(204);
+    expect(repeatedConfirmation.body).toBeUndefined();
   });
 
   test("does not reveal or update another company's queued upload", async () => {
@@ -809,11 +733,9 @@ describe("presigned upload and confirmation", () => {
       uploadIds.map((uploadId) => confirmUpload(uploadId)),
     );
     expect(confirmations.map(({ response }) => response.status)).toEqual(
-      Array.from({ length: uploadCount }, () => 200),
+      Array.from({ length: uploadCount }, () => 204),
     );
-    expect(confirmations.map(({ body }) => body)).toEqual(
-      uploadIds.map((id) => ({ id, status: "completed" })),
-    );
+    expect(confirmations.every(({ body }) => body === undefined)).toBe(true);
     expect(
       (await Promise.all(uploadIds.map(getUploadRecord))).every(
         (record) => record.status === "completed",
@@ -866,11 +788,8 @@ describe("automatic upload processing", () => {
     expect(bobAttempt.body).toEqual({ error: "Upload not found" });
 
     const confirmation = await confirmationRequest;
-    expect(confirmation.response.status).toBe(200);
-    expect(confirmation.body).toEqual({
-      id: initiated.body.upload.id,
-      status: "completed",
-    });
+    expect(confirmation.response.status).toBe(204);
+    expect(confirmation.body).toBeUndefined();
   });
 });
 
@@ -888,10 +807,7 @@ describe("presigned downloads", () => {
 
     expect(download.response.status).toBe(200);
     expect(download.response.headers.get("cache-control")).toBe("no-store");
-    expect(Object.keys(download.body).sort()).toEqual([
-      "downloadUrl",
-      "expiresAt",
-    ]);
+    expect(Object.keys(download.body)).toEqual(["downloadUrl"]);
     expect(download.body.downloadUrl).toContain("X-Amz-Expires=300");
     expect(download.body.downloadUrl).not.toContain(
       integrationEnvironment.minioRootPassword,
@@ -901,11 +817,6 @@ describe("presigned downloads", () => {
         "response-content-disposition",
       ),
     ).toBe('attachment; filename="scan.svg"');
-
-    const secondsUntilExpiry =
-      (Date.parse(download.body.expiresAt) - Date.now()) / 1_000;
-    expect(secondsUntilExpiry).toBeGreaterThan(280);
-    expect(secondsUntilExpiry).toBeLessThanOrEqual(300);
 
     const storageResponse = await fetch(download.body.downloadUrl);
     expect(storageResponse.status).toBe(200);

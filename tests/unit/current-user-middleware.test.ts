@@ -1,4 +1,7 @@
-import type { CurrentUserLocals, UserRecord } from "../../shared/types/user.ts";
+import type {
+  CurrentUserLocals,
+  CurrentUserRecord,
+} from "../../shared/types/user.ts";
 import type { NextFunction, Request, Response } from "express";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
@@ -12,7 +15,7 @@ vi.mock("../../server/src/models/user.model.ts", () => ({
 
 import { requireCurrentUser } from "../../server/src/middleware/require-current-user.middleware.ts";
 
-const currentUser: UserRecord = {
+const currentUser: CurrentUserRecord = {
   id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
   name: "Alice",
   email: "alice@hospital-a.local",

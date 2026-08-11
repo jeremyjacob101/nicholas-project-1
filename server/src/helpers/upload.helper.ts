@@ -5,7 +5,7 @@ import type {
 
 export const PROCESSING_TIMEOUT_MS = 5_000;
 export const MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024;
-export const SIMULATED_PROCESSING_DURATION_MS = 1_000;
+export const SIMULATED_PROCESSING_DURATION_MS = 3_000;
 export const activeProcessingUploadIds = new Set<string>();
 const IMAGE_MIME_TYPE_PATTERN = /^image\/[a-z0-9][a-z0-9.+-]*$/;
 const UPLOAD_ID_PATTERN =

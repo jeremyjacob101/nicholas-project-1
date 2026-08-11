@@ -1,6 +1,5 @@
 import type {
   AuthorizedUpload,
-  CreatedUpload,
   CreateUploadInput,
   InitiatedUpload,
   PresignedDownload,
@@ -50,26 +49,20 @@ async function uploadImageToMinio(
   }
 }
 
-async function confirmUpload(
-  uploadId: string,
-  userId: string,
-): Promise<CreatedUpload> {
-  return apiFetch<CreatedUpload>(
-    `/api/uploads/${encodeURIComponent(uploadId)}/confirm`,
-    {
-      method: "POST",
-      headers: {
-        "X-Dev-User-Id": userId,
-      },
+async function confirmUpload(uploadId: string, userId: string): Promise<void> {
+  await apiFetch<void>(`/api/uploads/${encodeURIComponent(uploadId)}/confirm`, {
+    method: "POST",
+    headers: {
+      "X-Dev-User-Id": userId,
     },
-  );
+  });
 }
 
 export async function createUploadRecord(
   input: CreateUploadInput,
   userId: string,
   file: File,
-): Promise<CreatedUpload> {
+): Promise<void> {
   const initiatedUpload = await apiFetch<InitiatedUpload>("/api/uploads/init", {
     method: "POST",
     headers: {
@@ -85,5 +78,5 @@ export async function createUploadRecord(
 
   await uploadImageToMinio(initiatedUpload.uploadUrl, file);
 
-  return confirmUpload(initiatedUpload.upload.id, userId);
+  await confirmUpload(initiatedUpload.upload.id, userId);
 }

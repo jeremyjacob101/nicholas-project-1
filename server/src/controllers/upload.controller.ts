@@ -8,7 +8,6 @@ import type {
 import type { Request } from "express";
 import {
   describeMinioError,
-  getPresignedUrlExpiresAt,
   isMinioObjectNotFound,
 } from "../helpers/storage.helper.ts";
 import {
@@ -18,7 +17,6 @@ import {
 } from "../helpers/upload.helper.ts";
 import {
   createUpload,
-  findUploadByIdAndCompanyId,
   findUploadsByCompanyId,
   findUploadRecordByIdAndCompanyId,
   updateUploadStatus,
@@ -28,33 +26,6 @@ import {
   createPresignedMinioUploadUrl,
   getMinioObjectStat,
 } from "../minio.ts";
-
-export async function getUpload(
-  request: Request,
-  response: CurrentUserResponse,
-): Promise<void> {
-  const uploadId = request.params.uploadId;
-  const user = response.locals.currentUser;
-
-  if (!isValidUploadId(uploadId)) {
-    response.status(404).json({ error: "Upload not found" });
-    return;
-  }
-
-  try {
-    const upload = await findUploadByIdAndCompanyId(uploadId, user.company_id);
-
-    if (!upload) {
-      response.status(404).json({ error: "Upload not found" });
-      return;
-    }
-
-    response.json({ upload });
-  } catch (error) {
-    console.error("Failed to load upload:", error);
-    response.status(500).json({ error: "Unable to load upload" });
-  }
-}
 
 export async function listUploads(
   request: Request,
@@ -107,10 +78,8 @@ export async function initiateUpload(
     const initiatedUpload: InitiatedUpload = {
       upload: {
         id: upload.id,
-        status: upload.status,
       },
       uploadUrl,
-      expiresAt: getPresignedUrlExpiresAt(),
     };
 
     response.status(201).json(initiatedUpload);
@@ -150,7 +119,7 @@ export async function confirmUpload(
         response.status(404).json({ error: "Upload not found" });
         return;
       case "completed":
-        response.json({ id: result.id, status: result.status });
+        response.status(204).send();
         return;
       case "unavailable":
         response.status(409).json({ error: "Upload cannot be confirmed" });
@@ -232,7 +201,6 @@ export async function getUploadDownloadUrl(
     );
     const presignedDownload: PresignedDownload = {
       downloadUrl,
-      expiresAt: getPresignedUrlExpiresAt(),
     };
 
     response.json(presignedDownload);

@@ -72,7 +72,7 @@ export async function confirmUploadForCompany(
   const confirmationState = getUploadConfirmationState(upload.status);
 
   if (confirmationState === "completed") {
-    return { kind: "completed", id: upload.id, status: "completed" };
+    return { kind: "completed" };
   }
 
   if (confirmationState === "unavailable") {
@@ -121,7 +121,7 @@ export async function confirmUploadForCompany(
 
   try {
     await processConfirmedUpload(upload.id, companyId, upload.object_key);
-    return { kind: "completed", id: upload.id, status: "completed" };
+    return { kind: "completed" };
   } catch (error) {
     console.error("Failed to process confirmed upload:", error);
     return { kind: "processing-error" };

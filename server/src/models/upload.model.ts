@@ -132,25 +132,3 @@ export async function findUploadsByCompanyId(
 
   return result.rows;
 }
-
-export async function findUploadByIdAndCompanyId(
-  uploadId: string,
-  companyId: string,
-): Promise<AuthorizedUpload | null> {
-  const result = await pool.query<AuthorizedUpload>(
-    `
-      SELECT
-        id,
-        sample_id,
-        filename,
-        classification,
-        status,
-        created_at
-      FROM uploads
-      WHERE id = $1 AND company_id = $2
-    `,
-    [uploadId, companyId],
-  );
-
-  return result.rows[0] ?? null;
-}

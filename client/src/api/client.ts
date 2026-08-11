@@ -5,7 +5,8 @@ export async function apiFetch<T>(
   options?: RequestInit,
 ): Promise<T> {
   const response = await fetch(`${API_URL}${path}`, options);
-  const data: unknown = await response.json();
+  const data: unknown =
+    response.status === 204 ? undefined : await response.json();
 
   if (!response.ok) {
     const errorMessage =

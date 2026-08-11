@@ -6,7 +6,11 @@ export async function listUsers(
   response: Response,
 ): Promise<void> {
   try {
-    const users = await findAllUsers();
+    const users = (await findAllUsers()).map(({ id, name, company_name }) => ({
+      id,
+      name,
+      company_name,
+    }));
     response.json({ users });
   } catch (error) {
     console.error("Failed to load users:", error);

@@ -1,4 +1,4 @@
-import type { UserRecord } from "../../../shared/types/user.ts";
+import type { CurrentUserRecord } from "../../../shared/types/user.ts";
 import { pool } from "../database.ts";
 
 const userQuery = `
@@ -12,16 +12,18 @@ const userQuery = `
   JOIN companies ON companies.id = users.company_id
 `;
 
-export async function findAllUsers(): Promise<UserRecord[]> {
-  const result = await pool.query<UserRecord>(
+export async function findAllUsers(): Promise<CurrentUserRecord[]> {
+  const result = await pool.query<CurrentUserRecord>(
     `${userQuery} ORDER BY companies.name, users.name`,
   );
 
   return result.rows;
 }
 
-export async function findUserById(userId: string): Promise<UserRecord | null> {
-  const result = await pool.query<UserRecord>(
+export async function findUserById(
+  userId: string,
+): Promise<CurrentUserRecord | null> {
+  const result = await pool.query<CurrentUserRecord>(
     `${userQuery} WHERE users.id = $1`,
     [userId],
   );
